@@ -1,0 +1,16 @@
+launch:
+
+- node:
+    pkg: "vrpn_mocap"
+    namespace: "vrpn_mocap"
+    exec: "client_node"
+    name: "mocap_connection"
+    param:
+    -
+        from: "$(find-pkg-share vrpn_mocap)/config/client.yaml"
+    -
+        name: "server"
+        value: "192.168.178.30"
+    -
+        name: "port"
+        value: "3883"
