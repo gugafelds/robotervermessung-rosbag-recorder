@@ -1,0 +1,15 @@
+{
+    "ros.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/gugafelds/robotervermessung-rosbag-viz/build/data_preparation",
+        "/home/gugafelds/robotervermessung-rosbag-viz/install/data_preparation/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/gugafelds/robotervermessung-rosbag-viz/build/data_preparation",
+        "/home/gugafelds/robotervermessung-rosbag-viz/install/data_preparation/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
