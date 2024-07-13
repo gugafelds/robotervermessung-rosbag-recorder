@@ -18,9 +18,9 @@ from ftp_download import sendRandomTrajectoriesFTP, changeFTPValue, getFTPTestFi
 class RosbagGUI(Node):
     def __init__(self):
         super().__init__('rosbag_gui')
-        self.bags_directory = str(Path.home()) + '/robotervermessung-rosbag-viz/data/rosbag_data/'
-        self.logs_directory = str(Path.home()) + '/robotervermessung-rosbag-viz/data/ftp_data/'
-        self.trajectories_directory = str(Path.home()) + '/robotervermessung-rosbag-viz/data/random_trajectories/'
+        self.bags_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/rosbag_data/'
+        self.logs_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/ftp_data/'
+        self.trajectories_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_trajectories/'
 
         self.publisher_process = self.create_publisher(Empty, '/activate_rosbag_processor', 10)
         self.record_process = None

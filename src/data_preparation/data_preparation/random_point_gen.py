@@ -24,7 +24,7 @@ home_orientation_quaternion = [0.0642142, 0.60757, 0.386589, 0.690857]
 home_rotation = R.from_quat(home_orientation_quaternion).as_matrix()
 
 # Step 1: Generate a grid of points inside the cube with a resolution defined as follows
-resolution = 25  # mm
+resolution = 20  # mm
 x = np.arange(0, 630 + resolution, resolution)
 y = np.arange(0, 630 + resolution, resolution)
 z = np.arange(0, 630 + resolution, resolution)

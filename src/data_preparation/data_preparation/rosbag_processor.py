@@ -15,7 +15,7 @@ import os
 class RosbagProcessor(Node):
     def __init__(self):
         super().__init__('rosbag_processor')
-        self.declare_parameter('bags_directory', str(Path.home()) + '/robotervermessung-rosbag-viz/data/rosbag_data')
+        self.declare_parameter('bags_directory', str(Path.home()) + '/robotervermessung-rosbag-recorder/data/rosbag_data')
         self.declare_parameter('topics', [
             '/vrpn_mocap/abb4400_tcp/pose',
             '/vrpn_mocap/abb4400_tcp/twist',
@@ -26,7 +26,7 @@ class RosbagProcessor(Node):
             '/socket_data/joint_states',
             '/socket_data/achieved_position',
         ])        
-        self.declare_parameter('merged_output_directory', str(Path.home()) + '/robotervermessung-rosbag-viz/data/csv_data/')
+        self.declare_parameter('merged_output_directory', str(Path.home()) + '/robotervermessung-rosbag-recorder/data/csv_data/')
         self.bags_directory = self.get_parameter('bags_directory').get_parameter_value().string_value
         self.topics = self.get_parameter('topics').get_parameter_value().string_array_value
         self.merged_output_directory = self.get_parameter('merged_output_directory').get_parameter_value().string_value
