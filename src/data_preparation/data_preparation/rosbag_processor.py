@@ -114,11 +114,6 @@ class RosbagProcessor(Node):
 
                         if len(parsed_data) == 13:
                             print("Debug Info: JointState Parsed Data with 13 columns")
-                            print(parsed_data)
-                            print("Columns: ", columns)
-                        
-                            print(parsed_data[0])
-                            print(parsed_data[1])
 
                     elif isinstance(msg, PoseStamped):
                         parsed_data.append([
