@@ -114,7 +114,8 @@ try:
         lcss_accdist DOUBLE PRECISION[],
         lcss_path DOUBLE PRECISION[],
         lcss_score DOUBLE PRECISION,
-        lcss_threshold DOUBLE PRECISION
+        lcss_threshold DOUBLE PRECISION,
+        metric_type VARCHAR(50)
     )
     '''
     pg_cur.execute(create_metrics_lcss_table_query)
@@ -125,6 +126,7 @@ try:
         trajectory_header_id VARCHAR(50),
         dtw_max_distance DOUBLE PRECISION,
         dtw_average_distance DOUBLE PRECISION,
+        dtw_distances DOUBLE PRECISION[],
         dtw_X DOUBLE PRECISION[],
         dtw_Y DOUBLE PRECISION[],
         dtw_accdist DOUBLE PRECISION[],
@@ -154,6 +156,7 @@ try:
         trajectory_header_id VARCHAR(50),
         dtw_max_distance DOUBLE PRECISION,
         dtw_average_distance DOUBLE PRECISION,
+        dtw_distances DOUBLE PRECISION[],
         dtw_X DOUBLE PRECISION[],
         dtw_Y DOUBLE PRECISION[],
         dtw_accdist DOUBLE PRECISION[],
@@ -261,6 +264,7 @@ try:
             'trajectory_header_id': doc.get('trajectory_header_id', ''),
             'dtw_max_distance': doc.get('dtw_max_distance', None),
             'dtw_average_distance': doc.get('dtw_average_distance', None),
+            'dtw_distances': doc.get('dtw_distances', []),
             'dtw_X': doc.get('dtw_X', []),
             'dtw_Y': doc.get('dtw_Y', []),
             'dtw_accdist': doc.get('dtw_accdist', []),
@@ -296,7 +300,7 @@ try:
             'trajectory_header_id': doc.get('trajectory_header_id', ''),
             'frechet_max_distance': doc.get('frechet_max_distance', None),
             'frechet_average_distance': doc.get('frechet_average_distance', None),
-            'frechet_distances': doc.get('frechet_distance', []),
+            'frechet_distances': doc.get('frechet_distances', []),
             'frechet_matrix': doc.get('frechet_matrix', []),
             'frechet_path': doc.get('frechet_path', []),
             'metric_type': doc.get('metric_type', 'discrete_frechet')
@@ -308,6 +312,7 @@ try:
             'trajectory_header_id': doc.get('trajectory_header_id', ''),
             'dtw_max_distance': doc.get('dtw_max_distance', None),
             'dtw_average_distance': doc.get('dtw_average_distance', None),
+            'dtw_distances': doc.get('dtw_distances', []),
             'dtw_X': doc.get('dtw_X', []),
             'dtw_Y': doc.get('dtw_Y', []),
             'dtw_accdist': doc.get('dtw_accdist', []),
@@ -332,108 +337,108 @@ try:
 
     print("Header data migration completed successfully.")
 
-    # Fetch data from MongoDB data collection and insert into PostgreSQL
-    for doc in mongo_collection_data.find():
-        normalized_doc = normalize_data_document(doc)
+    # # Fetch data from MongoDB data collection and insert into PostgreSQL
+    # for doc in mongo_collection_data.find():
+    #     normalized_doc = normalize_data_document(doc)
 
-        # Generate dynamic insert query based on the fields present
-        columns = ', '.join(normalized_doc.keys())
-        values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-        insert_data_query = f'''
-        INSERT INTO trajectories.trajectories_data ({columns}) 
-        VALUES ({values})
-        '''
+    #     # Generate dynamic insert query based on the fields present
+    #     columns = ', '.join(normalized_doc.keys())
+    #     values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #     insert_data_query = f'''
+    #     INSERT INTO trajectories.trajectories_data ({columns}) 
+    #     VALUES ({values})
+    #     '''
 
-        pg_cur.execute(insert_data_query, normalized_doc)
-        pg_conn.commit()
+    #     pg_cur.execute(insert_data_query, normalized_doc)
+    #     pg_conn.commit()
 
-    print("Data data migration completed successfully.")
+    # print("Data data migration completed successfully.")
 
-    # Fetch and insert LCSS metrics data
-    for doc in mongo_collection_metrics.find({'metric_type': 'lcss'}):
-        normalized_doc = normalize_metrics_lcss_document(doc)
+    # # Fetch and insert LCSS metrics data
+    # for doc in mongo_collection_metrics.find({'metric_type': 'lcss'}):
+    #     normalized_doc = normalize_metrics_lcss_document(doc)
 
-        columns = ', '.join(normalized_doc.keys())
-        values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-        insert_metrics_lcss_query = f'''
-        INSERT INTO trajectories.trajectories_metrics_lcss ({columns}) 
-        VALUES ({values})
-        '''
+    #     columns = ', '.join(normalized_doc.keys())
+    #     values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #     insert_metrics_lcss_query = f'''
+    #     INSERT INTO trajectories.trajectories_metrics_lcss ({columns}) 
+    #     VALUES ({values})
+    #     '''
 
-        pg_cur.execute(insert_metrics_lcss_query, normalized_doc)
-        pg_conn.commit()
+    #     pg_cur.execute(insert_metrics_lcss_query, normalized_doc)
+    #     pg_conn.commit()
 
-    print("Metrics data migration (LCSS) completed successfully.")
+    # print("Metrics data migration (LCSS) completed successfully.")
 
-    # Fetch and insert DTW Johnen metrics data
-    for doc in mongo_collection_metrics.find({'metric_type': 'dtw_johnen'}):
-        normalized_doc = normalize_metrics_dtw_johnen_document(doc)
+    # # Fetch and insert DTW Johnen metrics data
+    # for doc in mongo_collection_metrics.find({'metric_type': 'dtw_johnen'}):
+    #     normalized_doc = normalize_metrics_dtw_johnen_document(doc)
 
-        columns = ', '.join(normalized_doc.keys())
-        values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-        insert_metrics_dtw_johnen_query = f'''
-        INSERT INTO trajectories.trajectories_metrics_dtw_johnen ({columns}) 
-        VALUES ({values})
-        '''
+    #     columns = ', '.join(normalized_doc.keys())
+    #     values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #     insert_metrics_dtw_johnen_query = f'''
+    #     INSERT INTO trajectories.trajectories_metrics_dtw_johnen ({columns}) 
+    #     VALUES ({values})
+    #     '''
 
-        pg_cur.execute(insert_metrics_dtw_johnen_query, normalized_doc)
-        pg_conn.commit()
+    #     pg_cur.execute(insert_metrics_dtw_johnen_query, normalized_doc)
+    #     pg_conn.commit()
 
-    print("Metrics data migration (DTW Johnen) completed successfully.")
+    # print("Metrics data migration (DTW Johnen) completed successfully.")
 
-    # Fetch and insert Discrete Frechet metrics data
-    for doc in mongo_collection_metrics.find({'metric_type': 'discrete_frechet'}):
-        normalized_doc = normalize_metrics_discrete_frechet_document(doc)
+    # # Fetch and insert Discrete Frechet metrics data
+    # for doc in mongo_collection_metrics.find({'metric_type': 'discrete_frechet'}):
+    #     normalized_doc = normalize_metrics_discrete_frechet_document(doc)
 
-        columns = ', '.join(normalized_doc.keys())
-        values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-        insert_metrics_discrete_frechet_query = f'''
-        INSERT INTO trajectories.trajectories_metrics_discrete_frechet ({columns}) 
-        VALUES ({values})
-        '''
+    #     columns = ', '.join(normalized_doc.keys())
+    #     values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #     insert_metrics_discrete_frechet_query = f'''
+    #     INSERT INTO trajectories.trajectories_metrics_discrete_frechet ({columns}) 
+    #     VALUES ({values})
+    #     '''
 
-        pg_cur.execute(insert_metrics_discrete_frechet_query, normalized_doc)
-        pg_conn.commit()
+    #     pg_cur.execute(insert_metrics_discrete_frechet_query, normalized_doc)
+    #     pg_conn.commit()
 
-    print("Metrics data migration (Discrete Frechet) completed successfully.")
+    # print("Metrics data migration (Discrete Frechet) completed successfully.")
 
-    # Fetch and insert DTW Standard metrics data
-    for doc in mongo_collection_metrics.find({'metric_type': 'dtw_standard'}):
-        normalized_doc = normalize_metrics_dtw_standard_document(doc)
+    # # Fetch and insert DTW Standard metrics data
+    # for doc in mongo_collection_metrics.find({'metric_type': 'dtw_standard'}):
+    #     normalized_doc = normalize_metrics_dtw_standard_document(doc)
 
-        columns = ', '.join(normalized_doc.keys())
-        values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-        insert_metrics_dtw_standard_query = f'''
-        INSERT INTO trajectories.trajectories_metrics_dtw_standard ({columns}) 
-        VALUES ({values})
-        '''
+    #     columns = ', '.join(normalized_doc.keys())
+    #     values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #     insert_metrics_dtw_standard_query = f'''
+    #     INSERT INTO trajectories.trajectories_metrics_dtw_standard ({columns}) 
+    #     VALUES ({values})
+    #     '''
 
-        pg_cur.execute(insert_metrics_dtw_standard_query, normalized_doc)
-        pg_conn.commit()
+    #     pg_cur.execute(insert_metrics_dtw_standard_query, normalized_doc)
+    #     pg_conn.commit()
 
-    print("Metrics data migration (DTW Standard) completed successfully.")
+    # print("Metrics data migration (DTW Standard) completed successfully.")
 
-    # Fetch data from MongoDB metrics collection (with metric_type "euclidean") and insert into PostgreSQL
-    for doc in mongo_collection_metrics.find({'metric_type': 'euclidean'}):
-        try:
-            normalized_doc = normalize_metrics_euclidean_document(doc)
+    # # Fetch data from MongoDB metrics collection (with metric_type "euclidean") and insert into PostgreSQL
+    # for doc in mongo_collection_metrics.find({'metric_type': 'euclidean'}):
+    #     try:
+    #         normalized_doc = normalize_metrics_euclidean_document(doc)
 
-            # Generate dynamic insert query based on the fields present
-            columns = ', '.join(normalized_doc.keys())
-            values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
-            insert_metrics_euclidean_query = f'''
-            INSERT INTO trajectories.trajectories_metrics_euclidean ({columns}) 
-            VALUES ({values})
-            '''
+    #         # Generate dynamic insert query based on the fields present
+    #         columns = ', '.join(normalized_doc.keys())
+    #         values = ', '.join([f"%({k})s" for k in normalized_doc.keys()])
+    #         insert_metrics_euclidean_query = f'''
+    #         INSERT INTO trajectories.trajectories_metrics_euclidean ({columns}) 
+    #         VALUES ({values})
+    #         '''
 
-            pg_cur.execute(insert_metrics_euclidean_query, normalized_doc)
-            pg_conn.commit()
-        except Exception as e:
-            print(f"Error inserting euclidean metric document: {e}")
-            print(f"Problematic document: {doc}")
-            pg_conn.rollback()  # Rollback the transaction in case of error
+    #         pg_cur.execute(insert_metrics_euclidean_query, normalized_doc)
+    #         pg_conn.commit()
+    #     except Exception as e:
+    #         print(f"Error inserting euclidean metric document: {e}")
+    #         print(f"Problematic document: {doc}")
+    #         pg_conn.rollback()  # Rollback the transaction in case of error
 
-    print("Metrics data migration (Euclidean) completed successfully.")
+    # print("Metrics data migration (Euclidean) completed successfully.")
 
 except Exception as e:
     print(f"An error occurred: {e}")

@@ -2,4 +2,5 @@
 /log
 /install
 /data
+/scripts/.env
 .vscode
