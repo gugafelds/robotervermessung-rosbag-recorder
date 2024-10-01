@@ -75,13 +75,20 @@ class RosbagProcessor(Node):
                 parsed_data = []
                 columns = []
                 for t, msg in data:
-                    if isinstance(msg, Point) and topic == "/socket_data/position":
+                    if topic == "/socket_data/achieved_position":
+                        if isinstance(msg, Point):
+                            parsed_data.append([t, msg.x, msg.y, msg.z])
+                            columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z']
+                        elif isinstance(msg, Pose):
+                            parsed_data.append([
+                                t,
+                                msg.position.x, msg.position.y, msg.position.z,
+                                msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
+                            ])
+                            columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z', 'aq_x', 'aq_y', 'aq_z', 'aq_w']
+                    elif isinstance(msg, Point) and topic == "/socket_data/position":
                         parsed_data.append([t, msg.x, msg.y, msg.z])
                         columns = ['timestamp', 'ps_x', 'ps_y', 'ps_z']
-                    
-                    elif isinstance(msg, Pose) and topic == "/socket_data/achieved_position":
-                        parsed_data.append([t, msg.position.x, msg.position.y, msg.position.z, msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z])
-                        columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z', 'aq_w','aq_x', 'aq_y', 'aq_z']
                     elif isinstance(msg, Quaternion):
                         parsed_data.append([
                             t,
@@ -177,8 +184,8 @@ class RosbagProcessor(Node):
 
                 if parsed_data and columns:
                     df = pd.DataFrame(parsed_data, columns=columns)
-                    csv_file = os.path.join(self.merged_output_directory, self.bag_file + f'{topic.replace("/", "_")}.csv')
-                    print(csv_file)
+                    csv_file = os.path.join(self.merged_output_directory,
+                                            self.bag_file + f'{topic.replace("/", "_")}.csv')
                     df.to_csv(csv_file, index=False)
                     self.get_logger().info(f'Saved topic {topic} data to {csv_file}.')
 
@@ -215,33 +222,41 @@ class RosbagProcessor(Node):
             # Remove the 'source' column
             merged_df.drop(columns=['source'], inplace=True)
 
-            # Ensure that the columns that don't exist in certain dataframes are filled with NaN
+            # Define base columns for each data type
             if data_type == "mocap":
                 all_columns = [
                     'timestamp', 'sec', 'nanosec',
                     'pv_x', 'pv_y', 'pv_z', 'ov_x', 'ov_y', 'ov_z', 'ov_w',
-                    'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x', 'tcp_angularv_y', 'tcp_angularv_z', 'tcp_angularv',
+                    'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x', 'tcp_angularv_y',
+                    'tcp_angularv_z', 'tcp_angularv',
                     'tcp_accelv__x', 'tcp_accelv__y', 'tcp_accelv__z', 'tcp_accelv',
                     'tcp_accelv_angular_x', 'tcp_accelv_angular_y', 'tcp_accelv_angular_z', 'tcp_accelv_angular'
                 ]
-            elif data_type ==  "websocket":
+            elif data_type == "websocket":
                 all_columns = [
-                    'timestamp', 'ps_x', 'ps_y', 'ps_z',
-                    'os_x', 'os_y', 'os_z', 'os_w',
-                    'tcp_speeds'
-                ] + [f'joint_{i+1}' for i in range(6)] + ['ap_x', 'ap_y', 'ap_z']  # Assuming 6 joints
+                                  'timestamp', 'ps_x', 'ps_y', 'ps_z',
+                                  'os_x', 'os_y', 'os_z', 'os_w',
+                                  'tcp_speeds'
+                              ] + [f'joint_{i + 1}' for i in range(6)] + ['ap_x', 'ap_y', 'ap_z']
             elif data_type == "mocap+websocket":
                 all_columns = [
-                    'timestamp', 'sec', 'nanosec',
-                                        'pv_x', 'pv_y', 'pv_z', 'ov_x', 'ov_y', 'ov_z', 'ov_w',
-                    'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x', 'tcp_angularv_y', 'tcp_angularv_z', 'tcp_angularv',
-                    'tcp_accelv__x', 'tcp_accelv__y', 'tcp_accelv__z', 'tcp_accelv',
-                    'tcp_accelv_angular_x', 'tcp_accelv_angular_y', 'tcp_accelv_angular_z', 'tcp_accelv_angular', 
-                    'ps_x', 'ps_y', 'ps_z',
-                    'os_x', 'os_y', 'os_z', 'os_w',
-                    'tcp_speeds'] + [f'joint_{i+1}' for i in range(6)
-                ] + ['ap_x', 'ap_y', 'ap_z', 'aq_x','aq_y', 'aq_z', 'aq_w']
+                                  'timestamp', 'sec', 'nanosec',
+                                  'pv_x', 'pv_y', 'pv_z', 'ov_x', 'ov_y', 'ov_z', 'ov_w',
+                                  'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x',
+                                  'tcp_angularv_y', 'tcp_angularv_z', 'tcp_angularv',
+                                  'tcp_accelv__x', 'tcp_accelv__y', 'tcp_accelv__z', 'tcp_accelv',
+                                  'tcp_accelv_angular_x', 'tcp_accelv_angular_y', 'tcp_accelv_angular_z',
+                                  'tcp_accelv_angular',
+                                  'ps_x', 'ps_y', 'ps_z',
+                                  'os_x', 'os_y', 'os_z', 'os_w',
+                                  'tcp_speeds'
+                              ] + [f'joint_{i + 1}' for i in range(6)] + ['ap_x', 'ap_y', 'ap_z']
 
+            # Add orientation columns if they exist in any of the dataframes
+            if any('aq_x' in df.columns for df in dataframes):
+                all_columns.extend(['aq_x', 'aq_y', 'aq_z', 'aq_w'])
+
+            # Ensure that the columns that don't exist in certain dataframes are filled with NaN
             for col in all_columns:
                 if col not in merged_df.columns:
                     merged_df[col] = np.nan
