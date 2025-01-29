@@ -1,5 +1,6 @@
 from ftplib import FTP, all_errors
 import os
+from io import StringIO
 
 def getFTPTestFile(save_directory):
 # Ensure the save directory exists
@@ -25,7 +26,7 @@ def getFTPTestFile(save_directory):
     
     # Close the FTP connection
     ftp.quit()
-
+    
 def changeFTPValue(value):
     # Create a text file named SystemVariables with the value 1 inside
     file_name = 'SystemVariables.txt'

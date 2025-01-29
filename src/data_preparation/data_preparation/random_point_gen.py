@@ -26,6 +26,7 @@ home_rotation = R.from_quat(home_orientation_quaternion).as_matrix()
 # Step 1: Generate a grid of points inside the cube with a resolution defined as follows
 resolution = 20  # mm
 x = np.arange(0, 630 + resolution, resolution)
+print(x)
 y = np.arange(0, 630 + resolution, resolution)
 z = np.arange(0, 630 + resolution, resolution)
 X, Y, Z = np.meshgrid(x, y, z)
@@ -94,4 +95,3 @@ def is_far_enough(new_point, selected_points, min_distance):
         return True
     distances = np.linalg.norm(selected_points - new_point, axis=1)
     return np.all(distances >= min_distance)
-

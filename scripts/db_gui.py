@@ -5,7 +5,7 @@ class CSVToPostgreSQLGUI:
     def __init__(self, start_processing_callback):
         self.window = tk.Tk()
         self.window.title('CSV to PostgreSQL')
-        self.window.geometry('700x650')  # Increased height to accommodate new button
+        self.window.geometry('700x650')
 
         self.start_processing_callback = start_processing_callback
 
@@ -28,10 +28,23 @@ class CSVToPostgreSQLGUI:
         file_frame = ttk.LabelFrame(main_frame, text='File/Folder Selection')
         file_frame.pack(pady=10, padx=10, fill=tk.X)
 
-        self.file_path_entry = ttk.Entry(file_frame, width=50, style='TEntry')
-        self.file_path_entry.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
-        ttk.Button(file_frame, text='Select File', command=self.open_file_dialog).grid(row=0, column=1, padx=5, pady=5)
-        ttk.Button(file_frame, text='Select Folder', command=self.open_folder_dialog).grid(row=0, column=2, padx=5, pady=5)
+        # Create a frame for the file selection row
+        file_selection_frame = ttk.Frame(file_frame)
+        file_selection_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # File path entry
+        self.file_path_entry = ttk.Entry(file_selection_frame, width=50, style='TEntry')
+        self.file_path_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+        # File selection buttons
+        ttk.Button(file_selection_frame, text='Select File', command=self.open_file_dialog).pack(side=tk.LEFT, padx=5)
+        ttk.Button(file_selection_frame, text='Select Folder', command=self.open_folder_dialog).pack(side=tk.LEFT, padx=5)
+
+        # Pick & Place checkbox
+        self.pickplace_var = tk.BooleanVar(value=False)
+        self.pickplace_checkbox = ttk.Checkbutton(file_selection_frame, text='Pick & Place',
+                                                 variable=self.pickplace_var, style='TCheckbutton')
+        self.pickplace_checkbox.pack(side=tk.LEFT, padx=5)
 
         # Input Fields Section
         input_frame = ttk.LabelFrame(main_frame, text='Input Fields')
@@ -100,7 +113,8 @@ class CSVToPostgreSQLGUI:
             'bahnplanung': self.entries['bahnplanung'].get(),
             'source_data_ist': self.entries['source_data_ist'].get(),
             'source_data_soll': self.entries['source_data_soll'].get(),
-            'upload_database': self.upload_var.get()
+            'upload_database': self.upload_var.get(),
+            'pickplace': self.pickplace_var.get()  # Added pickplace parameter
         }
 
         self.start_processing_callback(params)

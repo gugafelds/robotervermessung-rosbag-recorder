@@ -1,0 +1,5 @@
+[console_scripts]
+connect_socket = data_preparation.connect_socket:main
+rosbag_gui = data_preparation.rosbag_gui:main
+rosbag_processor = data_preparation.rosbag_processor:main
+

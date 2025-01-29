@@ -12,7 +12,6 @@ DB_PARAMS = {
     'host': os.getenv('DB_HOST'),
     'port': os.getenv('DB_PORT')
 }
-
 # Mappings of CSV columns to database columns
 MAPPINGS = {
     'ACCEL_MAPPING': {

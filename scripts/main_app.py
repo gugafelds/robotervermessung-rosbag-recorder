@@ -3,11 +3,13 @@ import traceback
 from db_gui import CSVToPostgreSQLGUI
 from db_operations import DatabaseOperations
 from csv_processor import CSVProcessor
+from db_operations_pickplace import DatabaseOperationsPickPlace
 from db_config import DB_PARAMS, MAPPINGS
 
 
 class CSVToPostgreSQLApp:
     def __init__(self):
+        self.db_ops_pickplace = DatabaseOperationsPickPlace(DB_PARAMS)
         self.db_ops = DatabaseOperations(DB_PARAMS)
         self.gui = CSVToPostgreSQLGUI(self.process_csv)
 
@@ -23,7 +25,7 @@ class CSVToPostgreSQLApp:
             self.gui.update_status(f'Error details: {traceback.format_exc()}')
 
     def process_folder(self, folder_path, params):
-        csv_files = [f for f in os.listdir(folder_path) if f.startswith('record_') and f.endswith('.csv')]
+        csv_files = [f for f in os.listdir(folder_path) if f.startswith('record_') and f.endswith('final.csv')]
         total_files = len(csv_files)
 
         for i, csv_file in enumerate(csv_files, 1):
@@ -44,15 +46,19 @@ class CSVToPostgreSQLApp:
             params['robot_model'],
             params['bahnplanung'],
             params['source_data_ist'],
-            params['source_data_soll']
+            params['source_data_soll'],
+            params['pickplace']
+
         )
 
         if processed_data is None:
             self.gui.update_status("An error occurred while processing the CSV file.")
             return
-
-        if params['upload_database']:
+        testing=True
+        if params['upload_database'] and params['pickplace']==False and testing ==False:
             self.upload_to_database(processed_data)
+        else:
+            self.upload_to_database_pickplace(processed_data)
 
         self.print_processing_stats(processed_data, params['upload_database'])
 
@@ -84,6 +90,35 @@ class CSVToPostgreSQLApp:
             self.gui.update_status(f'Error details: {traceback.format_exc()}')
         finally:
             conn.close()
+    def upload_to_database_pickplace(self, processed_data):
+        self.gui.update_status("Starting database operations...")
+        conn = self.db_ops_pickplace.connect_to_db()
+        try:
+            operations = [
+                ('bahn_info', self.db_ops_pickplace.insert_bahn_info, processed_data['bahn_info_data']),
+                ('rapid_events', self.db_ops_pickplace.insert_rapid_events_data, processed_data['RAPID_EVENTS_MAPPING']),
+                ('pose', self.db_ops_pickplace.insert_pose_data, processed_data['POSE_MAPPING']),
+                ('position_soll', self.db_ops_pickplace.insert_position_soll_data, processed_data['POSITION_SOLL_MAPPING']),
+                ('orientation_soll', self.db_ops_pickplace.insert_orientation_soll_data,
+                 processed_data['ORIENTATION_SOLL_MAPPING']),
+                ('twist_ist', self.db_ops_pickplace.insert_twist_ist_data, processed_data['TWIST_IST_MAPPING']),
+                ('twist_soll', self.db_ops_pickplace.insert_twist_soll_data, processed_data['TWIST_SOLL_MAPPING']),
+                ('accel', self.db_ops_pickplace.insert_accel_data, processed_data['ACCEL_MAPPING']),
+                ('joint', self.db_ops_pickplace.insert_joint_data, processed_data['JOINT_MAPPING'])
+            ]
+
+            for i, (operation_name, insert_func, data) in enumerate(operations, 1):
+                self.gui.update_status(f"Processing {operation_name} data...")
+                insert_func(conn, data)
+                self.gui.update_progress(i / len(operations) * 100)
+                self.gui.update_status(f"Completed {operation_name} data processing.")
+
+        except Exception as e:
+            self.gui.update_status(f'Error during database upload: {str(e)}')
+            self.gui.update_status(f'Error details: {traceback.format_exc()}')
+        finally:
+            conn.close()
+
 
     def print_processing_stats(self, processed_data, upload_database):
         try:

@@ -9,11 +9,14 @@ from tkinter import ttk, messagebox, simpledialog
 from tkinter.constants import BOTH, LEFT, RIGHT, BOTTOM
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import Bool, Empty, Float64, UInt16
 from std_msgs.msg import Empty
 from rosbag_processor import RosbagProcessor
 from random_point_gen import generate_trajectory_and_save
+from random_point_gen_pick_place import generate_pick_place_trajectory_and_save
 from connect_socket import ConnectSocket
 from ftp_download import sendRandomTrajectoriesFTP, changeFTPValue, getFTPTestFile
+import time
 
 class RosbagGUI(Node):
     def __init__(self):
@@ -21,39 +24,153 @@ class RosbagGUI(Node):
         self.bags_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/rosbag_data/'
         self.logs_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/ftp_data/'
         self.trajectories_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_trajectories/'
-
+        self.pick_place_trajectories_directory = str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_pick_place_trajectories/'
+        self.stop_recording_sub = self.create_subscription(Bool,'/stop_recording_signal',self.stop_recording_callback,10)
         self.publisher_process = self.create_publisher(Empty, '/activate_rosbag_processor', 10)
+        self.pub_weight = self.create_publisher(Float64, '/socket_data/weight', 10)
+        self.pub_velocity_picking = self.create_publisher(UInt16, '/socket_data/velocity_picking', 10)
+        self.pub_velocity_handling = self.create_publisher(UInt16, '/socket_data/velocity_handling', 10)
         self.record_process = None
+        self.record_pickplace_process=None
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
         self.init_ui()
-
+    def stop_recording_callback(self, msg):
+        if msg.data:
+            self.stop_recording_pickplace()
     def init_ui(self):
-        self.window = tk.Tk()
-        self.window.title('Robotervermessung')
-        self.window.geometry('700x500')  # Adjust the size as needed
-
-        self.style = ttk.Style()
-
-        # Configure overall application style
-        self.style.configure('.', font=('Ubuntu', 10))
-
-        # Configure LabelFrames
-        self.style.configure('TLabelFrame', font=('Ubuntu', 14, 'bold'), foreground='black')
-
-        # Configure Buttons
-        self.style.configure('TButton', font=('Ubuntu Light', 10), foreground='black', background='SkyBlue3', padding=5)
-        self.style.map('TButton', foreground = [('active', '!disabled', 'black')],
-                     background = [('active', 'SkyBlue2')])
-        # Configure Entries
-        self.style.configure('TEntry', font=('Ubuntu Light', 10), foreground='black', padding=5)
+            self.window = tk.Tk()
+            self.window.title('Robotervermessung')
+            self.window.geometry('1000x500')  # Increased width to accommodate new frame
+            self.automatic_mode = tk.BooleanVar(value=False)
+            self.style = ttk.Style()
+            # Configure overall application style
+            self.style.configure('.', font=('Ubuntu', 10))
+            self.style.configure('TLabelFrame', font=('Ubuntu', 14, 'bold'), foreground='black')
+            self.style.configure('TButton', font=('Ubuntu Light', 10), foreground='black', background='SkyBlue3', padding=5)
+            self.style.map('TButton', foreground=[('active', '!disabled', 'black')],
+                        background=[('active', 'SkyBlue2')])
+            self.style.configure('TEntry', font=('Ubuntu Light', 10), foreground='black', padding=5)
+            self.setup_left_frame()
+            self.setup_right_frame()
+            self.setup_middle_frame()  # New Pick_Place frame
+           # self.window.mainloop()
 
 
-        self.setup_left_frame()
-        self.setup_right_frame()
-
-        self.window.mainloop()
-
+    def setup_middle_frame(self):
+        Pick_Place_frame = ttk.Frame(self.window)
+        Pick_Place_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+        Pick_Place_param_frame = ttk.LabelFrame(Pick_Place_frame, text='Random Pick & Place Trajectory Generation')
+        Pick_Place_param_frame.pack(pady=10, padx=10, fill=tk.BOTH)
+    
+        # Configure grid columns to ensure alignment
+        Pick_Place_param_frame.grid_columnconfigure(1, weight=1)
+        
+        # Configure consistent widths
+        label_width = 20
+        entry_width = 15
+        row = 0
+    
+        # Velocity
+        ttk.Label(Pick_Place_param_frame, text='Velocity (mm/s):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.velocity_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.velocity_entry.insert(0, '1000')
+        self.velocity_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Velocity Picking
+        ttk.Label(Pick_Place_param_frame, text='Velocity Picking (mm/s):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.velocity_picking_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.velocity_picking_entry.insert(0, '1000')
+        self.velocity_picking_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Robot Movement
+        ttk.Label(Pick_Place_param_frame, text='Robot Movement:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.movement_var = tk.StringVar()
+        self.movement_dropdown = ttk.Combobox(Pick_Place_param_frame, 
+                                            textvariable=self.movement_var,
+                                            values=['MoveL', 'MoveC'],
+                                            state='readonly',
+                                            width=entry_width-3)  # Slightly smaller for combo
+        self.movement_dropdown.current(0)
+        self.movement_dropdown.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Cube Weight
+        ttk.Label(Pick_Place_param_frame, text='Cube Weight (kg):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.weight_var = tk.DoubleVar(value=2.5)
+        weight_values = (2.5, 5.1, 7.5, 15.2, 20.3)
+        self.weight_dropdown = ttk.Combobox(Pick_Place_param_frame,
+                                          textvariable=self.weight_var,
+                                          values=weight_values,
+                                          state='readonly',
+                                          width=entry_width-3)  # Slightly smaller for combo
+        self.weight_dropdown.current(0)
+        self.weight_dropdown.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Handling Height
+        ttk.Label(Pick_Place_param_frame, text='Handling Height (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.handling_height_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.handling_height_entry.insert(0, '200')
+        self.handling_height_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Gripping Height
+        ttk.Label(Pick_Place_param_frame, text='Gripping Height (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.gripping_height_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.gripping_height_entry.insert(0, '40')
+        self.gripping_height_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        self.gripping_height_entry.bind('<FocusOut>', self.validate_gripping_height)
+        row += 1
+    
+        # Safety Distance
+        ttk.Label(Pick_Place_param_frame, text='Safety Distance (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.safety_distance_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.safety_distance_entry.insert(0, '70')
+        self.safety_distance_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Reorientation Z
+        ttk.Label(Pick_Place_param_frame, text='Reorientation Z:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.reorientation_z_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.reorientation_z_entry.insert(0, '60')
+        self.reorientation_z_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Min Distance
+        ttk.Label(Pick_Place_param_frame, text='Min. Distance (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.min_distance_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.min_distance_entry.insert(0, '150')
+        self.min_distance_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Pick & Place Trajectories
+        ttk.Label(Pick_Place_param_frame, text='Pick & Place Trajectories:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.pick_place_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.pick_place_entry.insert(0, '5')
+        self.pick_place_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Iterations
+        ttk.Label(Pick_Place_param_frame, text='Iterations:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
+        self.iterations_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
+        self.iterations_entry.insert(0, '1')
+        self.iterations_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+        row += 1
+    
+        # Buttons
+        button_frame = ttk.Frame(Pick_Place_param_frame)
+        button_frame.grid(row=row, column=0, columnspan=2, pady=15)
+        
+        ttk.Button(button_frame, text='Generate Pick & Place Trajectory', 
+                  command=self.generate_pick_place_trajectory, 
+                  width=30).pack(pady=5)
+        
+        ttk.Button(button_frame, text='Send Pick & Place Trajectory', 
+                  command=self.send_Pick_Place_trajectory, 
+                  width=30).pack(pady=5)
 
     def setup_left_frame(self):
         left_frame = ttk.Frame(self.window)
@@ -64,7 +181,7 @@ class RosbagGUI(Node):
         pc_frame.pack(pady=10, padx=10, fill=tk.BOTH)
 
         self.pc_ip_entry = ttk.Entry(pc_frame, width=25, style='TEntry')  
-        self.pc_ip_entry.insert(0, '134.147.234.125')
+        self.pc_ip_entry.insert(0, '10.150.136.211') 
         self.pc_ip_entry.grid(row=0, column=1, padx=5, pady=5)
         ttk.Label(pc_frame, text='PC IP:').grid(row=0, column=0, padx=5, pady=5, sticky='e')
 
@@ -80,7 +197,7 @@ class RosbagGUI(Node):
         mocap_frame.pack(pady=10, padx=10, fill=tk.BOTH)
 
         self.mocap_ip_entry = ttk.Entry(mocap_frame, width=25, style='TEntry')  
-        self.mocap_ip_entry.insert(0, '192.168.178.30')
+        self.mocap_ip_entry.insert(0, '134.147.229.179')
         self.mocap_ip_entry.grid(row=0, column=1, padx=5, pady=5)
         ttk.Label(mocap_frame, text='MoCap IP:').grid(row=0, column=0, padx=5, pady=5, sticky='e')
 
@@ -91,14 +208,44 @@ class RosbagGUI(Node):
 
         ttk.Button(mocap_frame, text='Connect MoCap', command=self.connect_mocap, style='TButton').grid(row=2, columnspan=2, pady=5)
 
-        # Recording Section
-        record_frame = ttk.LabelFrame(left_frame, text="Record Data")
+        # Create a frame to hold both record sections
+        records_container = ttk.Frame(left_frame)
+        records_container.pack(fill=tk.BOTH, expand=True)
+
+        # Original Recording Section
+        record_frame = ttk.LabelFrame(records_container, text="Record Data")
         record_frame.pack(pady=10, padx=10, fill=tk.BOTH)
 
         self.recording_btn = ttk.Button(record_frame, text='Start Recording', command=self.start_stop_record, style='TButton')
         self.recording_btn.pack(pady=5)
 
         ttk.Button(record_frame, text='Generate CSV from ROSBAG', command=self.activate_rosbag_processor).pack(pady=10)
+
+        # Pick Place Recording Section - Now packed below the original recording section
+        record_pickplace_frame = ttk.LabelFrame(records_container, text="Record Data Pickplace")
+        record_pickplace_frame.pack(pady=10, padx=10, fill=tk.BOTH)
+
+        self.recording_pickplace_btn = ttk.Button(record_pickplace_frame, text='Start Recording Pickplace', 
+                                                command=self.start_stop_record_pickplace, style='TButton')
+        self.recording_pickplace_btn.pack(pady=5)
+        
+
+        ttk.Button(record_pickplace_frame, text='Generate CSV from ROSBAG Pickplace', 
+                command=self.activate_rosbag_processor_pickplace).pack(pady=10)
+        ttk.Checkbutton(record_pickplace_frame, text='Automatic Mode', 
+                    variable=self.automatic_mode, 
+                    command=self.on_automatic_mode_change).pack(pady=5)
+                    
+        self.iterations_frame = ttk.Frame(record_pickplace_frame)
+        self.iterations_frame.pack(pady=5)
+        ttk.Label(self.iterations_frame, text='Iterations:').pack(side=LEFT, padx=5)
+        self.automatic_iteration_entry = ttk.Entry(self.iterations_frame, width=10)
+        self.automatic_iteration_entry.pack(side=LEFT)
+        self.iterations_frame.pack_forget() 
+        self.count_frame = ttk.Frame(record_pickplace_frame)
+        ttk.Label(self.count_frame, text='Count:').pack(side=LEFT, padx=5)
+        self.count_entry = ttk.Entry(self.count_frame, width=10)
+        self.count_entry.pack(side=LEFT)
 
     def setup_right_frame(self):
         right_frame = ttk.Frame(self.window)
@@ -181,6 +328,7 @@ class RosbagGUI(Node):
             self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
             bag_file = Path(self.bags_directory) / f'record_{self.timestamp}_{self.trajectory}'
+
             self.record_process = subprocess.Popen(['ros2', 'bag', 'record', '-o', str(bag_file),
                                                     '/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist',
                                                     '/vrpn_mocap/abb4400_tcp/accel',
@@ -219,6 +367,83 @@ class RosbagGUI(Node):
         rosbag_processor = RosbagProcessor()
         self.status_label.config(text='Processing completed.')
         self.get_logger().info('Processing completed.')
+    def validate_gripping_height(self, event=None):
+        """Validate the gripping height value"""
+        try:
+            gripping_height = float(self.gripping_height_entry.get())
+            if gripping_height < 40:
+                messagebox.showerror("Invalid Input", "Gripping height must be at least 40mm!")
+                self.gripping_height_entry.delete(0, tk.END)
+                self.gripping_height_entry.insert(0, "40")
+                return False
+            return True
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter a valid number for gripping height!")
+            self.gripping_height_entry.delete(0, tk.END)
+            self.gripping_height_entry.insert(0, "40")
+            return False
+    def start_stop_record_pickplace(self):
+        if self.record_pickplace_process is None:
+            self.trajectory_pickplace = simpledialog.askstring("Input", "Enter pickplace trajectory description:")
+            if self.trajectory_pickplace is None:
+                self.status_label.config(text='Pickplace recording canceled.')
+                return
+
+            self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            bag_file = Path(self.bags_directory) / f'record_pickplace_{self.timestamp}_{self.trajectory_pickplace}'
+            
+            self.record_pickplace_process = subprocess.Popen(['ros2', 'bag', 'record', '-o', str(bag_file),
+                                                    '/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist',
+                                                    '/vrpn_mocap/abb4400_tcp/accel',
+                                                    'socket_data/position', 'socket_data/orientation',
+                                                    'socket_data/tcp_speed', 'socket_data/joint_states',
+                                                    'socket_data/achieved_position','socket_data/do_value','socket_data/weight','socket_data/movement_type','socket_data/velocity_picking','/socket_data/velocity_handling','socket_data/rpiacc'])
+
+            self.recording_pickplace_btn.config(text='Stop Recording Pickplace', style='Green.TButton')
+            self.status_label.config(text=f'Pickplace recording started: {bag_file}')
+            self.get_logger().info(f'Pickplace recording started: {bag_file}')
+            time.sleep(0.5)
+            msg = Float64()
+            msg.data = float(self.weight_var.get())
+            self.pub_weight.publish(msg)
+            msg = UInt16()
+            msg.data = int(self.velocity_picking_entry.get())
+            self.pub_velocity_picking.publish(msg)
+            msg = UInt16()
+            msg.data = int(self.velocity_entry.get())
+            self.pub_velocity_handling.publish(msg)
+            #input_time = simpledialog.askfloat("Input", "Enter pickplace recording duration (in seconds):")
+            #timer = threading.Timer(float(input_time), self.stop_recording_pickplace)
+            #timer.start()
+            #stop_recording=False
+            changeFTPValue("1")#Startbedingung für roboterbewegung setzten
+            
+            #stop recording aufrufen wenn ende der pick place anwendung mittelslisten to node       
+        else:
+            self.stop_recording_pickplace()
+
+    def stop_recording_pickplace(self):
+        if self.record_pickplace_process:
+            self.record_pickplace_process.terminate()
+            self.record_pickplace_process.wait()
+            self.record_pickplace_process = None
+            self.recording_pickplace_btn.config(text='Start Recording Pickplace', style='Red.TButton')
+            self.status_label.config(text='Pickplace recording stopped.')
+            changeFTPValue("0")
+            # stoppen der roboterbewgung
+            getFTPTestFile(self.logs_directory)
+            my_file = Path(self.logs_directory) / "ProgramExecution"
+            if my_file.is_file():
+                renamed_file = f'record_pickplace_{self.timestamp}_{self.trajectory_pickplace}_rapid_log'
+                os.rename(my_file, os.path.join(self.logs_directory, renamed_file))
+                self.get_logger().info(f'Renamed and saved pickplace log: {renamed_file}')
+            self.get_logger().info('Pickplace recording stopped.')
+    
+    def activate_rosbag_processor_pickplace(self):
+        rosbag_processor = RosbagProcessor()  # You might want to add specific processing for pickplace data
+        self.status_label.config(text='Pickplace processing completed.')
+        self.get_logger().info('Pickplace processing completed.')
 
     def generate_random_trajectories(self):
         reorientation_xy = float(self.reorientation_xy_entry.get())
@@ -252,11 +477,70 @@ class RosbagGUI(Node):
     def validate_port(self, port):
         return port.isdigit() and 1000 <= int(port) <= 9999
 
+    def generate_pick_place_trajectory(self):
+        try:
+            velocity = int(self.velocity_entry.get())
+            velocity_picking = int(self.velocity_picking_entry.get())
+            movement_type = self.movement_var.get()
+            reorientation_z = float(self.reorientation_z_entry.get())
+            min_distance = float(self.min_distance_entry.get())
+            pick_place_traj = int(self.pick_place_entry.get())
+            iterations = int(self.iterations_entry.get())
+            weight=self.weight_var.get()
+            handling_height=int(self.handling_height_entry.get())
+            gripping_height=int(self.gripping_height_entry.get())
+            safety_distance_edge=int(self.safety_distance_entry.get())
+            if reorientation_z > 60:
+                self.status_label.config(text='Reorientation Z angle must be <= 60.')
+                return
+            
+            num_trajectories = 1  # Adjust as needed
+            for i in range(num_trajectories):
+                filename = f'random_trajectory_{i + 1}.mod'
+                generate_pick_place_trajectory_and_save(filename, self.pick_place_trajectories_directory, velocity, velocity_picking, movement_type, reorientation_z, min_distance, pick_place_traj, iterations,weight,handling_height,gripping_height,safety_distance_edge)
+            self.status_label.config(text='Pick_Place trajectory generated.')
+
+            
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter valid numbers for all fields.")
+            self.status_label.config(text='Invalid input values.')
+
+    def send_Pick_Place_trajectory(self):
+        # Implement the logic to send the Pick_Place trajectory
+        # This could be similar to sendRandomTrajectoriesFTP but for Pick_Place trajectories
+        sendRandomTrajectoriesFTP(self.pick_place_trajectories_directory)
+        self.status_label.config(text='Pick Place trajectory sent.')
+
+#def main(args=None):
+#    rclpy.init(args=args)
+#    node = RosbagGUI()
+#    rclpy.spin(node)
+#    rclpy.shutdown()
+
+
+
+
+
+    def on_automatic_mode_change(self):
+        if self.automatic_mode.get():
+            self.iterations_frame.pack(pady=5)
+        else:
+            self.iterations_frame.pack_forget()
 def main(args=None):
     rclpy.init(args=args)
     node = RosbagGUI()
-    rclpy.spin(node)
+
+    # ROS-Spin läuft in separatem Thread
+    ros_thread = threading.Thread(target=lambda: rclpy.spin(node))
+    ros_thread.daemon = True
+    ros_thread.start()
+
+    # GUI mainloop läuft im Hauptthread
+    node.window.mainloop()
+
+    # Nach Schließen des Fensters
     rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
+
