@@ -25,7 +25,7 @@ class RosbagProcessor(Node):
             '/socket_data/tcp_speed',
             '/parameter_events',
             '/socket_data/joint_states',
-            '/socket_data/achieved_position','/socket_data/do_value','/socket_data/weight','/socket_data/movement_type','/socket_data/velocity_picking','/socket_data/velocity_handling','/socket_data/rpiacc'
+            '/socket_data/achieved_position','/socket_data/do_value','/socket_data/weight','/socket_data/movement_type','/socket_data/velocity_picking','/socket_data/velocity_handling','imup'
         ])        
         self.declare_parameter('merged_output_directory', str(Path.home()) + '/robotervermessung-rosbag-recorder/data/csv_data/')
         self.bags_directory = self.get_parameter('bags_directory').get_parameter_value().string_value
@@ -69,7 +69,22 @@ class RosbagProcessor(Node):
 
     def calculate_magnitude(self, x, y, z):
         return np.sqrt(x**2 + y**2 + z**2)
+    def rotate_vector(self,quaternion):
+        qx, qy, qz,qw  = quaternion
+        x, y, z = [-255.5, -147.5, 193]
+        return [
+            x * (qw*qw + qx*qx - qy*qy - qz*qz) + 
+            2 * (qx*qy - qw*qz) * y +
+            2 * (qx*qz + qw*qy) * z,
 
+            2 * (qx*qy + qw*qz) * x +
+            y * (qw*qw - qx*qx + qy*qy - qz*qz) +
+            2 * (qy*qz - qw*qx) * z,
+
+            2 * (qx*qz - qw*qy) * x +
+            2 * (qy*qz + qw*qx) * y +
+            z * (qw*qw - qx*qx - qy*qy + qz*qz)
+        ]
     def save_to_individual_csv(self, topic_data):
         for topic, data in topic_data.items():
             if data:
@@ -78,12 +93,14 @@ class RosbagProcessor(Node):
                 for t, msg in data:
                     if topic == "/socket_data/achieved_position":
                         if isinstance(msg, Point):
+
                             parsed_data.append([t, msg.x, msg.y, msg.z])
                             columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z']
                         elif isinstance(msg, Pose):
+                            translation = self.rotate_vector([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
                             parsed_data.append([
                                 t,
-                                msg.position.x, msg.position.y, msg.position.z,
+                                msg.position.x+(translation[0]), msg.position.y+(translation[1]), msg.position.z+(translation[2]),
                                 msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
                             ])
                             columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z', 'aq_x', 'aq_y', 'aq_z', 'aq_w']
@@ -114,7 +131,7 @@ class RosbagProcessor(Node):
                             msg.w
                         ])
                         columns = ['timestamp', 'os_x', 'os_y', 'os_z', 'os_w']
-                    elif isinstance(msg, Float64) and topic == '/socket_data/rpiacc':
+                    elif isinstance(msg, Float64) and topic == '/socket_data/imup':
                         parsed_data.append([
                             t,
                             msg.data
@@ -215,7 +232,7 @@ class RosbagProcessor(Node):
 
     def merge_csv_files(self):
         mocap_topics = ['/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist', '/vrpn_mocap/abb4400_tcp/accel']
-        websocket_topics = ['/socket_data/position', '/socket_data/orientation', '/socket_data/tcp_speed', '/socket_data/joint_states', '/socket_data/achieved_position','/socket_data/do_value','/socket_data/weight','/socket_data/movement_type','/socket_data/velocity_picking','/socket_data/velocity_handling','/socket_data/rpiacc']
+        websocket_topics = ['/socket_data/position', '/socket_data/orientation', '/socket_data/tcp_speed', '/socket_data/joint_states', '/socket_data/achieved_position','/socket_data/do_value','/socket_data/weight','/socket_data/movement_type','/socket_data/velocity_picking','/socket_data/velocity_handling','/socket_data/imup']
         both_topics = mocap_topics + websocket_topics
 
         # Separate merge logic for mocap and websocket data
@@ -262,20 +279,29 @@ class RosbagProcessor(Node):
                                   'tcp_speeds','acc_pi','DO_Signal','Movement Type','Weight','Velocity Picking','Velocity Handling']
             elif data_type == "mocap+websocket":
                 all_columns = [
-                                  'timestamp', 'sec', 'nanosec',
-                                  'pv_x', 'pv_y', 'pv_z', 'ov_x', 'ov_y', 'ov_z', 'ov_w',
-                                  'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x',
-                                  'tcp_angularv_y', 'tcp_angularv_z', 'tcp_angularv',
-                                  'tcp_accelv__x', 'tcp_accelv__y', 'tcp_accelv__z', 'tcp_accelv',
-                                  'tcp_accelv_angular_x', 'tcp_accelv_angular_y', 'tcp_accelv_angular_z',
-                                  'tcp_accelv_angular',
-                                  'ps_x', 'ps_y', 'ps_z',
-                                  'os_x', 'os_y', 'os_z', 'os_w'] + [f'joint_{i + 1}' for i in range(6)] + ['ap_x', 'ap_y', 'ap_z',
-                                  'tcp_speeds','acc_pi','DO_Signal','Movement Type','Weight','Velocity Picking','Velocity Handling']
+                'timestamp', 'sec', 'nanosec',
+                'pv_x', 'pv_y', 'pv_z', 'ov_x', 'ov_y', 'ov_z', 'ov_w',
+                'tcp_speedv_x', 'tcp_speedv_y', 'tcp_speedv_z', 'tcp_speedv', 'tcp_angularv_x',
+                'tcp_angularv_y', 'tcp_angularv_z', 'tcp_angularv',
+                'tcp_accelv__x', 'tcp_accelv__y', 'tcp_accelv__z', 'tcp_accelv',
+                'tcp_accelv_angular_x', 'tcp_accelv_angular_y', 'tcp_accelv_angular_z',
+                'tcp_accelv_angular',
+                'ps_x', 'ps_y', 'ps_z',
+                'os_x', 'os_y', 'os_z', 'os_w',
+                'tcp_speeds'
+            ] + [f'joint_{i + 1}' for i in range(6)] + [
+                'ap_x', 'ap_y', 'ap_z'
+            ]
+            
+                # Add orientation columns if they exist in any of the dataframes
+                if any('aq_x' in df.columns for df in dataframes):
+                    all_columns.extend(['aq_x', 'aq_y', 'aq_z', 'aq_w'])
 
-            # Add orientation columns if they exist in any of the dataframes
-            if any('aq_x' in df.columns for df in dataframes):
-                all_columns.extend(['aq_x', 'aq_y', 'aq_z', 'aq_w'])
+                # Add remaining columns
+                all_columns.extend([
+                    'acc_pi', 'DO_Signal', 'Movement Type', 'Weight',
+                    'Velocity Picking', 'Velocity Handling'
+                ])
 
             # Ensure that the columns that don't exist in certain dataframes are filled with NaN
             for col in all_columns:

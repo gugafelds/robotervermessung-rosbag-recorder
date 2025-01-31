@@ -1,16 +1,20 @@
 import csv
 import os
 import re
+import numpy as np
+import math
 from datetime import datetime, timedelta
 from tqdm import tqdm
 from db_config import MAPPINGS
 from db_config_pick_place import MAPPINGS_PICKPLACE
+import numpy as np
+from scipy.optimize import curve_fit
 class CSVProcessor:
     def __init__(self, file_path):
         self.file_path = file_path
         self.mappings = MAPPINGS
         self.mappings_pickplace=MAPPINGS_PICKPLACE
-
+    
     def process_csv(self, upload_database, robot_model, bahnplanung, source_data_ist, source_data_soll,pickplace):
         """Process the CSV file and prepare data for database insertion."""
         try:
@@ -218,22 +222,22 @@ class CSVProcessor:
                         if rows[i]['DO_Signal'] == '1.0':
                             # Gefunden erste 1, jetzt rückwärts zur ersten 0 gehen
                             temp = i
-                            while temp >= 0 and rows[temp]['DO_Signal'] in ['1.0', '']:
-                                temp -= 1
-                            bahn_start = temp + 1  # +1 weil wir die Position nach der letzten 0 wollen
+                            #while temp >= 0 and rows[temp]['DO_Signal'] in ['1.0', '']:
+                            #    temp -= 1
+                            bahn_start = temp+2  # +1 weil wir die Position nach der letzten 0 wollen
                             break
                     # Find bahn end
                     bahn_end = None
                     for i in range(bahn_start + 1, len(rows)):
                         if rows[i]['DO_Signal'] == '0.0':
-                            bahn_end = i
+                            bahn_end = i+2
                             break
                     
                     if bahn_end is None:
                         break
                     
                     # Get bahn rows
-                    bahn_rows = rows[bahn_start:bahn_end + 1]
+                    bahn_rows = rows[bahn_start:bahn_end]
                     
                     # Get bahn timing information
                     bahn_start_time[bahn_count] = self.convert_timestamp(bahn_rows[0]['timestamp'])
@@ -251,7 +255,8 @@ class CSVProcessor:
                     
                     # Process each row in the bahn
                     
-                        
+                    x_points = []
+                    y_points = []   
                     for row in bahn_rows:
                         if segment_counter==3:
                             break
@@ -260,9 +265,8 @@ class CSVProcessor:
                         
                         if segment_counter!=1:
                             direction='linear'
-                        elif segment_counter==1 and row['Movement Type'] not in ['linear', '']:
-                            direction=row['Movement Type']
-
+                        elif segment_counter==1:
+                            direction = self.calculate_direction(bahn_rows)
                         
                         # Create new segment if ap_x has value
                         if row.get('ap_x', '').strip():
@@ -398,6 +402,103 @@ class CSVProcessor:
                     print(f"Error processing CSV: {str(e)}")
                     raise  
 
+    
+
+# Funktion zur Berechnung der Richtung
+    def convert_to_float(self,value):
+        """Hilfsfunktion zur Umwandlung eines Strings in einen float."""
+        try:
+            return float(value)
+        except ValueError:
+            return None  # Falls der Wert nicht in einen float umgewandelt werden kann, None zurückgeben
+
+    def calculate_direction(self, bahn_rows):
+        """
+        Bestimmt die Richtung basierend auf allen Punkten zwischen Start und Ende in der Tabelle.
+        :param bahn_rows: Liste von Dictionaries mit den Schlüsseln 'ps_x' und 'ps_y'
+        :return: 'linear', 'circularleft' oder 'circularright'
+        """
+        # Schritt 1: Erster Punkt (ps_x, ps_y) mit Zahlenwert finden
+        first_point = None
+        start = None
+        for index, row in enumerate(bahn_rows):
+            ap_x = self.convert_to_float(row['ap_x'])
+            ap_y = self.convert_to_float(row['ap_y'])
+            if ap_x is not None and ap_y is not None:
+                first_point = (ap_x, ap_y)
+                start = index + 2
+                break
+            
+        if not first_point:
+            raise ValueError("Kein gültiger erster Punkt gefunden.")
+        
+        # Schritt 2: Letzter Punkt (ps_x, ps_y) mit Zahlenwert finden
+        last_point = None
+        end = None
+        for index, row in enumerate(bahn_rows[start:]):
+            ap_x = self.convert_to_float(row['ap_x'])
+            ap_y = self.convert_to_float(row['ap_y'])
+            if ap_x is not None and ap_y is not None:
+                last_point = (ap_x, ap_y)
+                end = index + start
+                break
+            
+        if not last_point:
+            raise ValueError("Kein gültiger letzter Punkt gefunden.")
+        
+        # Schritt 3: Alle gültigen ps_x, ps_y Punkte zwischen Start und Ende sammeln
+        points = []
+        for row in bahn_rows[start:end]:
+            ps_x = self.convert_to_float(row['ps_x'])
+            ps_y = self.convert_to_float(row['ps_y'])
+            if ps_x is not None and ps_y is not None:
+                points.append((ps_x, ps_y))
+        
+        if not points:
+            raise ValueError("Keine gültigen Punkte für die Kurvenbestimmung gefunden.")
+        
+        # Berechnung der Distanz zwischen dem ersten und letzten Punkt (Referenzgerade)
+        x1, y1 = first_point  # Erster Punkt
+        x2, y2 = last_point   # Letzter Punkt
+    
+        # Berechne die Distanz zwischen dem ersten und letzten Punkt
+        p1p2_distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+        
+        # Funktion zur Bestimmung des kürzesten Abstands eines Punktes zur Linie
+        def get_shortest_distance(xm, ym):
+            # Geradengleichung: Ax + By + C = 0
+            A = y2 - y1
+            B = x1 - x2
+            C = x2 * y1 - x1 * y2
+            return abs(A * xm + B * ym + C) / math.sqrt(A**2 + B**2)
+        
+        # Bestimmung des besten Fits (linear oder circular)
+        linear_points = []
+        circular_left_points = []
+        circular_right_points = []
+    
+        for (ps_x, ps_y) in points:
+            shortest_distance = get_shortest_distance(ps_x, ps_y)
+            if shortest_distance <= 0.1 * p1p2_distance:
+                linear_points.append((ps_x, ps_y))
+            else:
+                # Bestimme, ob der Punkt links oder rechts der Linie liegt
+                side_test = (x2 - x1) * (ps_y - y1) - (y2 - y1) * (ps_x - x1)
+                if side_test > 0:
+                    circular_left_points.append((ps_x, ps_y))
+                else:
+                    circular_right_points.append((ps_x, ps_y))
+    
+    # Entscheidung über die Kurve
+        if len(linear_points) > len(circular_left_points) and len(linear_points) > len(circular_right_points):
+            return "linear"
+        elif len(circular_left_points) > len(circular_right_points):
+            return "circularleft"
+        else:
+            return "circularright"
+
+
+    
     def process_mapping(self, row, mapping, bahn_id, current_segment_id, timestamp, source_data, data_list,
                             rows_processed, mapping_name, point_counts):
             if mapping_name == 'RAPID_EVENTS_MAPPING':
@@ -465,6 +566,7 @@ class CSVProcessor:
             if match:
                 return match.group(1)
         return None
+    
 
     @staticmethod
     def print_processing_stats(total_rows, rows_processed, point_counts):

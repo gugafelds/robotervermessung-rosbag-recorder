@@ -13,7 +13,7 @@ from std_msgs.msg import Bool, Empty, Float64, UInt16
 from std_msgs.msg import Empty
 from rosbag_processor import RosbagProcessor
 from random_point_gen import generate_trajectory_and_save
-from random_point_gen_pick_place import generate_pick_place_trajectory_and_save
+from random_point_gen_pick_place import generate_pick_place_trajectory_and_save, calibration_movement
 from connect_socket import ConnectSocket
 from ftp_download import sendRandomTrajectoriesFTP, changeFTPValue, getFTPTestFile
 import time
@@ -35,8 +35,10 @@ class RosbagGUI(Node):
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.init_ui()
     def stop_recording_callback(self, msg):
-        if msg.data:
-            self.stop_recording_pickplace()
+        if msg.data and self.recording_pickplace_btn.cget('text') == 'Stop Recording Pickplace' :
+            self.stop_recording_pickplace()  
+        elif msg.data and self.calibration_btn.cget('text') == 'Stop Recording Calibration' :
+            self.stop_recording_calib()
     def init_ui(self):
             self.window = tk.Tk()
             self.window.title('Robotervermessung')
@@ -228,7 +230,9 @@ class RosbagGUI(Node):
         self.recording_pickplace_btn = ttk.Button(record_pickplace_frame, text='Start Recording Pickplace', 
                                                 command=self.start_stop_record_pickplace, style='TButton')
         self.recording_pickplace_btn.pack(pady=5)
-        
+        self.calibration_btn = ttk.Button(record_pickplace_frame, text='Start Calibration Run', 
+                                 command=self.calibration_run, style='TButton')
+        self.calibration_btn.pack(pady=5)
 
         ttk.Button(record_pickplace_frame, text='Generate CSV from ROSBAG Pickplace', 
                 command=self.activate_rosbag_processor_pickplace).pack(pady=10)
@@ -391,19 +395,19 @@ class RosbagGUI(Node):
 
             self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-            bag_file = Path(self.bags_directory) / f'record_pickplace_{self.timestamp}_{self.trajectory_pickplace}'
+            bag_file = Path(self.bags_directory) / f'record_{self.timestamp}_pickplace_{self.trajectory_pickplace}'
             
             self.record_pickplace_process = subprocess.Popen(['ros2', 'bag', 'record', '-o', str(bag_file),
                                                     '/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist',
                                                     '/vrpn_mocap/abb4400_tcp/accel',
                                                     'socket_data/position', 'socket_data/orientation',
                                                     'socket_data/tcp_speed', 'socket_data/joint_states',
-                                                    'socket_data/achieved_position','socket_data/do_value','socket_data/weight','socket_data/movement_type','socket_data/velocity_picking','/socket_data/velocity_handling','socket_data/rpiacc'])
+                                                    'socket_data/achieved_position','socket_data/do_value','socket_data/weight','socket_data/movement_type','socket_data/velocity_picking','/socket_data/velocity_handling','/imu'])
 
             self.recording_pickplace_btn.config(text='Stop Recording Pickplace', style='Green.TButton')
             self.status_label.config(text=f'Pickplace recording started: {bag_file}')
             self.get_logger().info(f'Pickplace recording started: {bag_file}')
-            time.sleep(0.5)
+            time.sleep(1.5)
             msg = Float64()
             msg.data = float(self.weight_var.get())
             self.pub_weight.publish(msg)
@@ -435,11 +439,69 @@ class RosbagGUI(Node):
             getFTPTestFile(self.logs_directory)
             my_file = Path(self.logs_directory) / "ProgramExecution"
             if my_file.is_file():
-                renamed_file = f'record_pickplace_{self.timestamp}_{self.trajectory_pickplace}_rapid_log'
+                renamed_file = f'record_{self.timestamp}_pickplace_{self.trajectory_pickplace}_rapid_log'
                 os.rename(my_file, os.path.join(self.logs_directory, renamed_file))
                 self.get_logger().info(f'Renamed and saved pickplace log: {renamed_file}')
             self.get_logger().info('Pickplace recording stopped.')
-    
+    def calibration_run(self):
+        num_trajectories = 1  # Adjust as needed
+        for i in range(num_trajectories):
+            filename = f'random_trajectory_{i + 1}.mod'
+            calibration_movement(filename, self.pick_place_trajectories_directory)
+        self.status_label.config(text='Calibration Trajectory generated')
+        sendRandomTrajectoriesFTP(self.pick_place_trajectories_directory)
+        self.status_label.config(text='Calibration Trajectory sent.')
+        if self.record_pickplace_process is None:
+            self.trajectory_pickplace = simpledialog.askstring("Input", "Enter Calibration trajectory description:")
+            if self.trajectory_pickplace is None:
+                self.status_label.config(text='Calibration recording canceled.')
+                return
+
+            self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            bag_file = Path(self.bags_directory) / f'record_{self.timestamp}_pickplace_calibration_run_{self.trajectory_pickplace}'
+            
+            self.record_pickplace_process = subprocess.Popen(['ros2', 'bag', 'record', '-o', str(bag_file),
+                                                    '/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist',
+                                                    '/vrpn_mocap/abb4400_tcp/accel',
+                                                    'socket_data/position', 'socket_data/orientation',
+                                                    'socket_data/tcp_speed', 'socket_data/joint_states',
+                                                    'socket_data/achieved_position','socket_data/do_value','socket_data/weight','socket_data/movement_type','socket_data/velocity_picking','/socket_data/velocity_handling','/imu'])
+
+            self.calibration_btn.config(text='Stop Recording Calibration', style='Green.TButton')
+            self.status_label.config(text=f'Calibration recording started: {bag_file}')
+            self.get_logger().info(f'Calibration recording started: {bag_file}')
+            time.sleep(1.5)
+            msg = Float64()
+            msg.data = float(0)
+            self.pub_weight.publish(msg)
+            #input_time = simpledialog.askfloat("Input", "Enter pickplace recording duration (in seconds):")
+            #timer = threading.Timer(float(input_time), self.stop_recording_pickplace)
+            #timer.start()
+            #stop_recording=False
+            changeFTPValue("1")#Startbedingung für roboterbewegung setzten
+            
+            #stop recording aufrufen wenn ende der pick place anwendung mittelslisten to node       
+        else:
+            self.stop_recording_calib()
+
+    def stop_recording_calib(self):
+        if self.record_pickplace_process:
+            self.record_pickplace_process.terminate()
+            self.record_pickplace_process.wait()
+            self.record_pickplace_process = None
+            self.calibration_btn.config(text='Start Calibration Run', style='Red.TButton')
+            self.status_label.config(text='Calibration recording stopped.')
+            changeFTPValue("0")
+            # stoppen der roboterbewgung
+            getFTPTestFile(self.logs_directory)
+            my_file = Path(self.logs_directory) / "ProgramExecution"
+            if my_file.is_file():
+                renamed_file = f'record_{self.timestamp}_pickplace_calibration_run_{self.trajectory_pickplace}_rapid_log'
+                os.rename(my_file, os.path.join(self.logs_directory, renamed_file))
+                self.get_logger().info(f'Renamed and saved pickplace calibration log: {renamed_file}')
+            self.get_logger().info('Calibration recording stopped.')
+
     def activate_rosbag_processor_pickplace(self):
         rosbag_processor = RosbagProcessor()  # You might want to add specific processing for pickplace data
         self.status_label.config(text='Pickplace processing completed.')

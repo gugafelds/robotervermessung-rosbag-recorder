@@ -446,5 +446,113 @@ def is_far_enough(new_point, selected_points, min_distance):
     distances = np.linalg.norm(selected_points - new_point, axis=1)
     return np.all(distances >= min_distance)
 generate_pick_place_trajectory_and_save('test.mod',str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_pick_place_trajectories/',200,200,'MoveC',30,100,10,1,5,40,200,70)
+def calibration_movement(filename, directory):
+    # + resolution to be safe that points are created at the preferred handling height
+    filename = directory + filename
+    data_filename = directory + "trajectories_data_pick_place.mod"
+    with open(filename, 'w') as txtfile:
+        #punkt definitonen
+        txtfile.write("MODULE RandomPointsDefinition\n")
+        txtfile.write(f'PERS robtarget p1:=[[1315,-320,740],'
+                          f'[1,0,0,0],'
+                          f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
+        txtfile.write("PROC run_random_points0()\n")
+        txtfile.write(f"velocity := [300,500,5000,1000];\n")
+        txtfile.write(f"velocity_picking := [600,500,5000,1000];\n")  
 
+        txtfile.write(f"SetDO GripperClose,0;\n")
+        txtfile.write(f'WaitTime 1;\n')
+        txtfile.write(f'MoveL p1, velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=p1;\n')
+        txtfile.write(f'WaitTime 2;\n')
+
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 0, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+
+        txtfile.write(f'MoveL Offs(p1, 400, 0, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 0, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 200, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 400, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 400, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 400, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 0, 400, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 400, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 200, 0);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        ###################################################
+        
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 150), velocity,fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 200, 150);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 150), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 0, 150);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 150), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 200, 150);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 150), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 400, 150);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        ######################################################
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 400, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 400, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 400, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 200, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 400, 0, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 400, 0, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 200, 0, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+
+        txtfile.write(f'MoveL Offs(p1, 0, 0, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 0, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 200, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'MoveL Offs(p1, 0, 400, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 400, 300);\n')
+        txtfile.write(f'WaitTime 2;\n')
+
+        txtfile.write(f'MoveL Offs(p1, 0, 0, 200), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'currPos:=Offs(p1, 0, 0, 200);\n')
+        txtfile.write(f'WaitTime 2;\n')
+        
+        txtfile.write(f'TPWrite "Completely finished!";\n')
+        txtfile.write(f'movement_string:="END";\n')
+        txtfile.write(f'WaitTime 2;\n')
+        txtfile.write(f'movement_string:="x";\n')
+        txtfile.write("ENDPROC\n")
+        txtfile.write("ENDMODULE")
+    print(f'Random trajectory generated and saved in {filename}')
+    print(f'Velocities generated and saved in {data_filename}')
 #generate_pick_place_trajectory_and_save('test.mod', 'D:/Noel/Uni_Master/Masterarbeit/PythonSkripte/PickAndPlace/RandomTrajectories/',4000,4000, 'MoveL', 44, 10,10, 1)

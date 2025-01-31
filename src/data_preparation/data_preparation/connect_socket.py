@@ -40,7 +40,7 @@ class ConnectSocket(Node):
         self.server_socket.listen()
  
         self.get_logger().info(f"Server is listening on {HOST}:{PORT}")
-
+    
     def handle_client(self, client_socket, client_address):
         """Handle a single client connection"""
         try:
@@ -103,11 +103,11 @@ class ConnectSocket(Node):
         string_msg = String()
         string_msg.data = data
         self.string_publisher.publish(string_msg)
-        if data.startswith(';rpi_acc'):
-            msg= Float64()
-            #msg.data=msg.data = float(data[7:])
-            msg.data = float(data[8:data.find(';', 7)])
-            self.pub_acceleration_pi.publish(msg)
+        #if data.startswith(';rpi_acc'):
+        #    msg= Float64()
+        #    #msg.data=msg.data = float(data[7:])
+        #    msg.data = float(data[8:data.find(';', 7)])
+        #    self.pub_acceleration_pi.publish(msg)
         if data.startswith('DO'):
             msg = UInt8()
             msg.data = int(data[2])
@@ -151,8 +151,11 @@ class ConnectSocket(Node):
             self.pub_position.publish(position)
 
         elif data.startswith("linear") or data.startswith("circular"):
+            
             msg = String()
+            
             parts = data.split(';')
+            print(parts)
             msg.data = parts[0]
             self.pub_movement_type.publish(msg)
 
