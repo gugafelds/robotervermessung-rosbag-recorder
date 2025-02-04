@@ -2,6 +2,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import random
 from pathlib import Path
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import proj3d
+from matplotlib.text import Annotation
 
 def euler_to_quaternion(x_deg, y_deg, z_deg):
     # Convert degrees to radians
@@ -89,7 +92,7 @@ def transform_points_grid(points, origin_table, rotation_angle):
     dx, dy = origin_table
     
     # Verschiebung
-    points_shifted = points.copy()
+    points_shifted = points.astype(float).copy()
     points_shifted[:, 0] += dx
     points_shifted[:, 1] += dy
     
@@ -146,6 +149,7 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
     resolution = 20  # mm
     calculation=0
     table_height=700
+    tool_vicon_height=156.67
       # mm Abstand zum Rand vom Tisch
      # mm Abstand vom Tisch beim Handhaben des Objekts
     total_gripping_height=gripping_height+table_height
@@ -160,11 +164,14 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
     rotation_angle_laser = 0  # winkel zwischen x achsen durch messsystem  bestimmen positiv:von oben gegen uhrzeigersinn, negative von oben im uhrzeigersinn um ursprung gedreht
     #x_deg, y_deg, z_deg = 180, 0, 210+rotation_angle_laser #winkel um erstes werkstück zu greifen
     x_deg, y_deg, z_deg = 0, 0, 0+rotation_angle_laser #winkel um erstes werkstück zu greifen
-    origin_table=([1170,-500]) #später durch messsystem ausfüllen
-
-    start_orientation_quaternion = euler_to_quaternion(x_deg, y_deg, z_deg)
+    vicon_transformation=([1170-255.304,-320+147.4]) #später durch messsystem ausfüllen
+    origin_table=([1162,-467])
+    #start_orientation_quaternion = euler_to_quaternion(x_deg, y_deg, z_deg)
+    start_orientation_quaternion = [0.0, -0.25882,0.96592,0.0]
+    
     home_rotation = R.from_quat(start_orientation_quaternion).as_matrix()
-    starting_coordinates_cube_x_y = np.array([[145, 180, total_handling_height]]) #x und y koordinate des würfelmittelspunkts bezogen auf tisch koordinatensystem eintragen
+  
+    starting_coordinates_cube_x_y = np.array([[155, 150, total_handling_height]]) #x und y koordinate des würfelmittelspunkts bezogen auf tisch koordinatensystem eintragen
     starting_point=transform_points_grid(starting_coordinates_cube_x_y,origin_table,rotation_angle_laser).flatten()
     # Erstelle x und y Koordinaten mit Sicherheitsabstand
     x = np.arange(safety_distance_edge, 1000-safety_distance_edge, resolution)
@@ -179,8 +186,14 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
     # Translate the origin of the picking surface to align (x,y,z) of "Table Edge"
     #Erweiterung für Laserscanner notwendig jetzt erstmal nur für Tisch auf Position (1170/-50)
     points=transform_points_grid(points,origin_table, rotation_angle_laser)
+    
+    
+    
+
+    
     # Function to convert the rotation matrix into a quaternion
     
+
     filename = directory + filename
     data_filename = directory + "trajectories_data_pick_place.mod"
     trajectory_length = count_trajectories # -1 last Pick_Place Trajectory is back to starting position 
@@ -198,6 +211,7 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
             break
 
     selected_points = np.array(selected_points)
+   
     # Step 2: Make sure we have exactly trajectory_length points
     if len(selected_points) > trajectory_length:
         selected_points = selected_points[:trajectory_length]
@@ -212,10 +226,10 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
         if robot_movement=='MoveL':
             for i, point in enumerate(selected_points):
                 if i==0: #erste greifposition oberhalb und am würfel implementieren
-                    txtfile.write(f'PERS robtarget p{i+1}:=[[{starting_point[0]},{starting_point[1]},{starting_point[2]}],'
+                    txtfile.write(f'PERS robtarget p{i+1}:=[[{starting_point[0]+294.804},{starting_point[1]-180},{starting_point[2]+156.7}],'
                             f'[{start_orientation_quaternion[0]},{start_orientation_quaternion[1]},{start_orientation_quaternion[2]},{start_orientation_quaternion[3]}],'
                             f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
-                    txtfile.write(f'PERS robtarget p{i+2}:=[[{starting_point[0]},{starting_point[1]},{total_gripping_height}],'
+                    txtfile.write(f'PERS robtarget p{i+2}:=[[{starting_point[0]+294.804},{starting_point[1]-180},{total_gripping_height+156.7}],'
                             f'[{start_orientation_quaternion[0]},{start_orientation_quaternion[1]},{start_orientation_quaternion[2]},{start_orientation_quaternion[3]}],'
                             f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')    
                 else:
@@ -224,10 +238,10 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
                     R_tool=np.dot(z_rotation, home_rotation)
                     quaternion = rotation_to_quaternion(R_tool)
                     # Writing in RAPID ABB format
-                    txtfile.write(f'PERS robtarget p{i*2+1}:=[[{point[0]},{point[1]},{point[2]}],'
+                    txtfile.write(f'PERS robtarget p{i*2+1}:=[[{point[0]+294.804},{point[1]-180},{point[2]+156.7}],'
                                     f'[{quaternion[0]},{quaternion[1]},{quaternion[2]},{quaternion[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
-                    txtfile.write(f'PERS robtarget p{i*2+2}:=[[{point[0]},{point[1]},{total_gripping_height}],'
+                    txtfile.write(f'PERS robtarget p{i*2+2}:=[[{point[0]+294.804},{point[1]-180},{total_gripping_height+156.7}],'
                                     f'[{quaternion[0]},{quaternion[1]},{quaternion[2]},{quaternion[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
                  
@@ -281,10 +295,10 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
         elif robot_movement=='MoveC':
             for i, point in enumerate(selected_points):
                 if i==0: #erste greifposition oberhalb und am würfel implementieren
-                    txtfile.write(f'PERS robtarget p{i+1}:=[[{starting_point[0]},{starting_point[1]},{starting_point[2]}],'
+                    txtfile.write(f'PERS robtarget p{i+1}:=[[{starting_point[0]+294.804},{starting_point[1]-180},{starting_point[2]+156.7}],'
                             f'[{start_orientation_quaternion[0]},{start_orientation_quaternion[1]},{start_orientation_quaternion[2]},{start_orientation_quaternion[3]}],'
                             f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
-                    txtfile.write(f'PERS robtarget p{i+2}:=[[{starting_point[0]},{starting_point[1]},{total_gripping_height}],'
+                    txtfile.write(f'PERS robtarget p{i+2}:=[[{starting_point[0]+294.804},{starting_point[1]-180},{total_gripping_height+156.7}],'
                             f'[{start_orientation_quaternion[0]},{start_orientation_quaternion[1]},{start_orientation_quaternion[2]},{start_orientation_quaternion[3]}],'
                             f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')    
                 else:
@@ -299,18 +313,18 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
 
                     # Writing in RAPID ABB format
                     support_point=calculate_support_point(selected_points[(i-1)],selected_points[(i)])
-                    txtfile.write(f'PERS robtarget p{i*3}:=[[{support_point[0]},{support_point[1]},{support_point[2]}],'
+                    txtfile.write(f'PERS robtarget p{i*3}:=[[{support_point[0]+294.804},{support_point[1]-180},{support_point[2]+156.7}],'
                                     f'[{quaternion_support[0]},{quaternion_support[1]},{quaternion_support[2]},{quaternion_support[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
-                    txtfile.write(f'PERS robtarget p{i*3+1}:=[[{point[0]},{point[1]},{total_handling_height}],'
+                    txtfile.write(f'PERS robtarget p{i*3+1}:=[[{point[0]+294.804},{point[1]-180},{total_handling_height+156.7}],'
                                     f'[{quaternion[0]},{quaternion[1]},{quaternion[2]},{quaternion[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
-                    txtfile.write(f'PERS robtarget p{i*3+2}:=[[{point[0]},{point[1]},{total_gripping_height}],'
+                    txtfile.write(f'PERS robtarget p{i*3+2}:=[[{point[0]+294.804},{point[1]-180},{total_gripping_height+156.7}],'
                                     f'[{quaternion[0]},{quaternion[1]},{quaternion[2]},{quaternion[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
 
             support_point=calculate_support_point(selected_points[(-1)],selected_points[(0)])
-            txtfile.write(f'PERS robtarget p{len(selected_points)*3}:=[[{support_point[0]},{support_point[1]},{total_handling_height}],'
+            txtfile.write(f'PERS robtarget p{len(selected_points)*3}:=[[{support_point[0]+294.804},{support_point[1]-180},{total_handling_height+156.7}],'
                                     f'[{quaternion_support[0]},{quaternion_support[1]},{quaternion_support[2]},{quaternion_support[3]}],'
                                     f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')#Stützpunkt für Rückweg zu Startpos
             txtfile.write("PROC run_random_points0()\n")
@@ -439,13 +453,14 @@ def generate_pick_place_trajectory_and_save(filename, directory,velocity,velocit
         txtfile.write("ENDMODULE")
     print(f'Random trajectory generated and saved in {filename}')
     print(f'Velocities generated and saved in {data_filename}')
+    print(starting_point)
 # Function to check the minimum distance between points
 def is_far_enough(new_point, selected_points, min_distance):
     if len(selected_points) == 0:
         return True
     distances = np.linalg.norm(selected_points - new_point, axis=1)
     return np.all(distances >= min_distance)
-generate_pick_place_trajectory_and_save('test.mod',str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_pick_place_trajectories/',200,200,'MoveC',30,100,10,1,5,40,200,70)
+generate_pick_place_trajectory_and_save('test.mod',str(Path.home()) + '/robotervermessung-rosbag-recorder/data/random_pick_place_trajectories/',200,200,'MoveC',30,100,100,1,5,40,200,300)
 def calibration_movement(filename, directory):
     # + resolution to be safe that points are created at the preferred handling height
     filename = directory + filename
@@ -453,8 +468,8 @@ def calibration_movement(filename, directory):
     with open(filename, 'w') as txtfile:
         #punkt definitonen
         txtfile.write("MODULE RandomPointsDefinition\n")
-        txtfile.write(f'PERS robtarget p1:=[[1315,-320,740],'
-                          f'[1,0,0,0],'
+        txtfile.write(f'PERS robtarget p1:=[[1609.804,-320,896.7],'
+                          f'[0,-0.25882,0.96592,0],'
                           f'[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];\n')
         txtfile.write("PROC run_random_points0()\n")
         txtfile.write(f"velocity := [300,500,5000,1000];\n")
@@ -462,88 +477,88 @@ def calibration_movement(filename, directory):
 
         txtfile.write(f"SetDO GripperClose,0;\n")
         txtfile.write(f'WaitTime 1;\n')
-        txtfile.write(f'MoveL p1, velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL p1, velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=p1;\n')
         txtfile.write(f'WaitTime 2;\n')
 
-        txtfile.write(f'MoveL Offs(p1, 200, 0, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 0), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 0, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
 
-        txtfile.write(f'MoveL Offs(p1, 400, 0, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 0, 0), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 0, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 200, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 0), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 200, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 400, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 400, 0), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 400, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 200, 400, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 0), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 400, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 0, 400, 0), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 400, 0), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 400, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
 
-        txtfile.write(f'MoveL Offs(p1, 0, 200, 0), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 0), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 200, 0);\n')
         txtfile.write(f'WaitTime 2;\n')
         ###################################################
         
-        txtfile.write(f'MoveL Offs(p1, 0, 200, 150), velocity,fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 150), velocity,fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 200, 150);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 200, 0, 150), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 150), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 0, 150);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 200, 150), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 150), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 200, 150);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 200, 400, 150), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 150), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 400, 150);\n')
         txtfile.write(f'WaitTime 2;\n')
         ######################################################
-        txtfile.write(f'MoveL Offs(p1, 200, 400, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 400, 300), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 400, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 400, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 400, 300), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 400, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 200, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 200, 300), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 200, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 400, 0, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 400, 0, 300), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 400, 0, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 200, 0, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 200, 0, 300), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 200, 0, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
 
-        txtfile.write(f'MoveL Offs(p1, 0, 0, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 0, 300), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 0, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 0, 200, 300), velocity, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 200, 300), velocity, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 200, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
         
-        txtfile.write(f'MoveL Offs(p1, 0, 400, 300), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 400, 300), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 400, 300);\n')
         txtfile.write(f'WaitTime 2;\n')
 
-        txtfile.write(f'MoveL Offs(p1, 0, 0, 200), velocity_picking, fine, SchunkGreifer;\n')
+        txtfile.write(f'MoveL Offs(p1, 0, 0, 200), velocity_picking, fine, toolViconPP;\n')
         txtfile.write(f'currPos:=Offs(p1, 0, 0, 200);\n')
         txtfile.write(f'WaitTime 2;\n')
         

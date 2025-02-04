@@ -57,8 +57,11 @@ class RosbagGUI(Node):
             self.setup_middle_frame()  # New Pick_Place frame
            # self.window.mainloop()
 
-
+    
     def setup_middle_frame(self):
+        def update_weight(*args):
+            selected = self.weight_dropdown.get()
+            self.weight_var.set(weight_mapping[selected])
         Pick_Place_frame = ttk.Frame(self.window)
         Pick_Place_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
     
@@ -100,16 +103,25 @@ class RosbagGUI(Node):
         row += 1
     
         # Cube Weight
+        weight_mapping = {
+        'Greifer + 2.5kg': 16,
+        'Greifer + 5.1kg': 18.6,
+        'Greifer + 7.5kg': 21,
+        'Greifer + 15.2kg': 28.7,
+        'Greifer + 20.3kg': 33.8}
+
         ttk.Label(Pick_Place_param_frame, text='Cube Weight (kg):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
-        self.weight_var = tk.DoubleVar(value=2.5)
-        weight_values = (2.5, 5.1, 7.5, 15.2, 20.3)
+        self.weight_var = tk.DoubleVar(value=16)
         self.weight_dropdown = ttk.Combobox(Pick_Place_param_frame,
-                                          textvariable=self.weight_var,
-                                          values=weight_values,
-                                          state='readonly',
-                                          width=entry_width-3)  # Slightly smaller for combo
+            values=list(weight_mapping.keys()),
+            state='readonly',
+            width=entry_width-3)
         self.weight_dropdown.current(0)
         self.weight_dropdown.grid(row=row, column=1, padx=5, pady=5, sticky='w')
+
+        
+        
+        self.weight_dropdown.bind('<<ComboboxSelected>>', update_weight)
         row += 1
     
         # Handling Height

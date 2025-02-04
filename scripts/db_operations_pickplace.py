@@ -14,7 +14,7 @@ class DatabaseOperationsPickPlace:
 
     def check_bahn_id_exists(self, conn, table_name, bahn_id):
         with conn.cursor() as cur:
-            cur.execute(f"SELECT COUNT(*) FROM handhabungsdaten.{table_name} WHERE bahn_id = %s", (bahn_id,))
+            cur.execute(f"SELECT COUNT(*) FROM bewegungsdaten.{table_name} WHERE bahn_id = %s", (bahn_id,))
             return cur.fetchone()[0] > 0
 
     def insert_bahn_info(self, conn, data):
@@ -56,7 +56,7 @@ class DatabaseOperationsPickPlace:
                 
             # Prepare insert query
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_info (
+                INSERT INTO bewegungsdaten.bahn_info (
                     bahn_id, robot_model, bahnplanung, recording_date, start_time, end_time,
                     source_data_ist, source_data_soll, record_filename,
                     np_ereignisse, frequency_pose_ist, frequency_position_soll,
@@ -99,7 +99,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_pose_ist 
+                INSERT INTO bewegungsdaten.bahn_pose_ist 
                 (bahn_id, segment_id, timestamp, x_ist, y_ist, z_ist, qx_ist, qy_ist, qz_ist, qw_ist, 
                 source_data_ist)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -124,7 +124,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_position_soll 
+                INSERT INTO bewegungsdaten.bahn_position_soll 
                 (bahn_id, segment_id, timestamp, x_soll, y_soll, z_soll, source_data_soll)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """)
@@ -148,7 +148,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_twist_soll 
+                INSERT INTO bewegungsdaten.bahn_twist_soll 
                 (bahn_id, segment_id, timestamp, tcp_speed_soll, source_data_soll)
                 VALUES (%s, %s, %s, %s, %s)
             """)
@@ -172,7 +172,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_orientation_soll 
+                INSERT INTO bewegungsdaten.bahn_orientation_soll 
                 (bahn_id, segment_id, timestamp, qx_soll, qy_soll, qz_soll, qw_soll, source_data_soll)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """)
@@ -196,7 +196,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_accel_ist 
+                INSERT INTO bewegungsdaten.bahn_accel_ist 
                 (bahn_id, segment_id, timestamp, tcp_accel_ist, 
                 source_data_ist)
                 VALUES (%s, %s, %s, %s, %s)
@@ -221,7 +221,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_twist_ist 
+                INSERT INTO bewegungsdaten.bahn_twist_ist 
                 (bahn_id, segment_id, timestamp, tcp_speed_x, tcp_speed_y, tcp_speed_z, tcp_speed_ist, 
                 tcp_angular_x, tcp_angular_y, tcp_angular_z, tcp_angular_ist, 
                 source_data_ist)
@@ -247,7 +247,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_events 
+                INSERT INTO bewegungsdaten.bahn_events 
                 (bahn_id, segment_id, timestamp, x_reached, y_reached, z_reached, qx_reached, qy_reached, qz_reached, qw_reached, source_data_soll, movement_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """)
@@ -271,7 +271,7 @@ class DatabaseOperationsPickPlace:
 
         with conn.cursor() as cur:
             insert_query = sql.SQL("""
-                INSERT INTO handhabungsdaten.bahn_joint_states 
+                INSERT INTO bewegungsdaten.bahn_joint_states 
                 (bahn_id, segment_id, timestamp, joint_1, joint_2, joint_3, joint_4, joint_5, joint_6, 
                 source_data_soll)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)

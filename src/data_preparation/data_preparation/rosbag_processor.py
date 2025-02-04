@@ -99,8 +99,11 @@ class RosbagProcessor(Node):
                         elif isinstance(msg, Pose):
                             translation = self.rotate_vector([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
                             parsed_data.append([
+                                #t,
+                                #msg.position.x+(translation[0]), msg.position.y+(translation[1]), msg.position.z+(translation[2]),
+                                #msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
                                 t,
-                                msg.position.x+(translation[0]), msg.position.y+(translation[1]), msg.position.z+(translation[2]),
+                                msg.position.x, msg.position.y, msg.position.z,
                                 msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
                             ])
                             columns = ['timestamp', 'ap_x', 'ap_y', 'ap_z', 'aq_x', 'aq_y', 'aq_z', 'aq_w']
