@@ -13,7 +13,7 @@ from std_msgs.msg import Bool, Empty, Float64, UInt16
 from std_msgs.msg import Empty
 from rosbag_processor import RosbagProcessor
 from random_point_gen import generate_trajectory_and_save
-from random_point_gen_pick_place import generate_pick_place_trajectory_and_save, calibration_movement
+from random_point_gen_pick_place import generate_pick_place_trajectory_and_save, calibration_movement,gripper_down,gripper_up
 from connect_socket import ConnectSocket
 from ftp_download import sendRandomTrajectoriesFTP, changeFTPValue, getFTPTestFile
 import time
@@ -33,6 +33,7 @@ class RosbagGUI(Node):
         self.record_process = None
         self.record_pickplace_process=None
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.selected_height=305
         self.init_ui()
     def stop_recording_callback(self, msg):
         if msg.data and self.recording_pickplace_btn.cget('text') == 'Stop Recording Pickplace' :
@@ -43,6 +44,7 @@ class RosbagGUI(Node):
             self.window = tk.Tk()
             self.window.title('Robotervermessung')
             self.window.geometry('1000x500')  # Increased width to accommodate new frame
+            self.window.attributes('-zoomed', True)  # Für Linux
             self.automatic_mode = tk.BooleanVar(value=False)
             self.style = ttk.Style()
             # Configure overall application style
@@ -52,6 +54,10 @@ class RosbagGUI(Node):
             self.style.map('TButton', foreground=[('active', '!disabled', 'black')],
                         background=[('active', 'SkyBlue2')])
             self.style.configure('TEntry', font=('Ubuntu Light', 10), foreground='black', padding=5)
+            self.style.configure('Green.TCombobox', fieldbackground='lightgreen')
+            self.style.configure('Red.TCombobox', fieldbackground='red')
+            self.style.map('Green.TCombobox', fieldbackground=[('readonly', 'lightgreen')])
+            self.style.map('Red.TCombobox', fieldbackground=[('readonly', 'red')])
             self.setup_left_frame()
             self.setup_right_frame()
             self.setup_middle_frame()  # New Pick_Place frame
@@ -61,7 +67,10 @@ class RosbagGUI(Node):
     def setup_middle_frame(self):
         def update_weight(*args):
             selected = self.weight_dropdown.get()
-            self.weight_var.set(weight_mapping[selected])
+            self.weight_var.set(weight_mapping[selected]['weight'])
+            self.safety_distance_entry.delete(0, tk.END)
+            self.safety_distance_entry.insert(0, str(weight_mapping[selected]['safety_distance']))
+            self.selected_height = weight_mapping[selected]['height']
         Pick_Place_frame = ttk.Frame(self.window)
         Pick_Place_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
     
@@ -86,7 +95,7 @@ class RosbagGUI(Node):
         # Velocity Picking
         ttk.Label(Pick_Place_param_frame, text='Velocity Picking (mm/s):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.velocity_picking_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.velocity_picking_entry.insert(0, '1000')
+        self.velocity_picking_entry.insert(0, '400')
         self.velocity_picking_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -95,31 +104,35 @@ class RosbagGUI(Node):
         self.movement_var = tk.StringVar()
         self.movement_dropdown = ttk.Combobox(Pick_Place_param_frame, 
                                             textvariable=self.movement_var,
-                                            values=['MoveL', 'MoveC'],
+                                            values=['MoveC','MoveL'],
                                             state='readonly',
-                                            width=entry_width-3)  # Slightly smaller for combo
+                                            width=entry_width,
+                                            style='Red.TCombobox')
         self.movement_dropdown.current(0)
         self.movement_dropdown.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
         # Cube Weight
         weight_mapping = {
-        'Greifer + 2.5kg': 16,
-        'Greifer + 5.1kg': 18.6,
-        'Greifer + 7.5kg': 21,
-        'Greifer + 15.2kg': 28.7,
-        'Greifer + 20.3kg': 33.8}
-
+            'Greifer + 0kg': {'weight': 13.5, 'safety_distance': 10, 'height': 305},
+            'Greifer + 2.5kg': {'weight': 16, 'safety_distance': 80, 'height': 305},
+            'Greifer + 5.1kg': {'weight': 18.6, 'safety_distance': 115, 'height': 305},
+            'Greifer + 7.5kg': {'weight': 21, 'safety_distance': 145, 'height': 305},
+            'Greifer + 10.kg': {'weight': 23.5, 'safety_distance': 180, 'height': 305},
+            'Greifer + 15.2kg': {'weight': 28.7, 'safety_distance': 170, 'height': 275},
+            'Greifer + 20.3kg': {'weight': 33.8, 'safety_distance': 210, 'height': 275}
+            }
         ttk.Label(Pick_Place_param_frame, text='Cube Weight (kg):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
-        self.weight_var = tk.DoubleVar(value=16)
+        self.weight_var = tk.DoubleVar(value=13.5)
         self.weight_dropdown = ttk.Combobox(Pick_Place_param_frame,
             values=list(weight_mapping.keys()),
             state='readonly',
-            width=entry_width-3)
+            width=entry_width,
+            style='Green.TCombobox')
         self.weight_dropdown.current(0)
         self.weight_dropdown.grid(row=row, column=1, padx=5, pady=5, sticky='w')
-
         
+
         
         self.weight_dropdown.bind('<<ComboboxSelected>>', update_weight)
         row += 1
@@ -142,7 +155,8 @@ class RosbagGUI(Node):
         # Safety Distance
         ttk.Label(Pick_Place_param_frame, text='Safety Distance (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.safety_distance_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.safety_distance_entry.insert(0, '70')
+        selected = self.weight_dropdown.get()
+        self.safety_distance_entry.insert(0, str(weight_mapping[selected]['safety_distance']))
         self.safety_distance_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -156,21 +170,21 @@ class RosbagGUI(Node):
         # Min Distance
         ttk.Label(Pick_Place_param_frame, text='Min. Distance (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.min_distance_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.min_distance_entry.insert(0, '150')
+        self.min_distance_entry.insert(0, '10')
         self.min_distance_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
         # Pick & Place Trajectories
         ttk.Label(Pick_Place_param_frame, text='Pick & Place Trajectories:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.pick_place_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.pick_place_entry.insert(0, '5')
+        self.pick_place_entry.insert(0, '100')
         self.pick_place_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
         # Iterations
         ttk.Label(Pick_Place_param_frame, text='Iterations:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.iterations_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.iterations_entry.insert(0, '1')
+        self.iterations_entry.insert(0, '10')
         self.iterations_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -185,6 +199,31 @@ class RosbagGUI(Node):
         ttk.Button(button_frame, text='Send Pick & Place Trajectory', 
                   command=self.send_Pick_Place_trajectory, 
                   width=30).pack(pady=5)
+        ttk.Button(button_frame, text='Gripper Down',
+                  command=self.Gripper_Down,
+                  width=30).pack(pady=5)
+                  
+        ttk.Button(button_frame, text='Gripper Up',
+                  command=self.Gripper_Up,
+                  width=30).pack(pady=5)
+        
+        style = ttk.Style()
+        style.configure('Green.TEntry', fieldbackground='lightgreen')
+        style.configure('Red.TEntry', fieldbackground='red')
+        style.configure('Green.TCombobox', fieldbackground='lightgreen')
+        style.configure('Red.TCombobox', fieldbackground='red')
+
+        self.velocity_entry.configure(style='Green.TEntry')
+        self.handling_height_entry.configure(style='Green.TEntry')
+        self.weight_dropdown.configure(style='Green.TCombobox')
+        self.velocity_picking_entry.configure(style='Red.TEntry')
+        self.movement_dropdown.configure(style='Red.TCombobox')
+        self.gripping_height_entry.configure(style='Red.TEntry')
+        self.safety_distance_entry.configure(style='Red.TEntry')
+        self.reorientation_z_entry.configure(style='Red.TEntry')
+        self.min_distance_entry.configure(style='Red.TEntry')
+        self.pick_place_entry.configure(style='Red.TEntry')
+        self.iterations_entry.configure(style='Red.TEntry')
 
     def setup_left_frame(self):
         left_frame = ttk.Frame(self.window)
@@ -513,7 +552,26 @@ class RosbagGUI(Node):
                 os.rename(my_file, os.path.join(self.logs_directory, renamed_file))
                 self.get_logger().info(f'Renamed and saved pickplace calibration log: {renamed_file}')
             self.get_logger().info('Calibration recording stopped.')
-
+    def Gripper_Down(self):
+        num_trajectories = 1  # Adjust as needed
+        for i in range(num_trajectories):
+            filename = f'random_trajectory_{i + 1}.mod'
+            gripper_down(filename, self.pick_place_trajectories_directory)
+        self.status_label.config(text='Gripper Down')
+        sendRandomTrajectoriesFTP(self.pick_place_trajectories_directory)
+        changeFTPValue("1")
+        time.sleep(3)
+        changeFTPValue("0")
+    def Gripper_Up(self):
+        num_trajectories = 1  # Adjust as needed
+        for i in range(num_trajectories):
+            filename = f'random_trajectory_{i + 1}.mod'
+            gripper_up(filename, self.pick_place_trajectories_directory)
+        self.status_label.config(text='Gripper Up')
+        sendRandomTrajectoriesFTP(self.pick_place_trajectories_directory)
+        changeFTPValue("1")
+        time.sleep(3)
+        changeFTPValue("0")
     def activate_rosbag_processor_pickplace(self):
         rosbag_processor = RosbagProcessor()  # You might want to add specific processing for pickplace data
         self.status_label.config(text='Pickplace processing completed.')
@@ -560,7 +618,11 @@ class RosbagGUI(Node):
             min_distance = float(self.min_distance_entry.get())
             pick_place_traj = int(self.pick_place_entry.get())
             iterations = int(self.iterations_entry.get())
-            weight=self.weight_var.get()
+            selected = self.weight_dropdown.get()
+            if round(self.weight_var.get() - 13.5, 1)==0.0:
+                weight = f"cube := load0;\n"
+            else:
+                weight = f"cube := [{round(self.weight_var.get() - 13.5, 1)}, [0, 0, {self.selected_height}], [1, 0, 0, 0], 1, 0, 0];\n"
             handling_height=int(self.handling_height_entry.get())
             gripping_height=int(self.gripping_height_entry.get())
             safety_distance_edge=int(self.safety_distance_entry.get())
