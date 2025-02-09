@@ -88,7 +88,7 @@ class RosbagGUI(Node):
         # Velocity
         ttk.Label(Pick_Place_param_frame, text='Velocity (mm/s):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.velocity_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.velocity_entry.insert(0, '1000')
+        self.velocity_entry.insert(0, '400')
         self.velocity_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -140,7 +140,7 @@ class RosbagGUI(Node):
         # Handling Height
         ttk.Label(Pick_Place_param_frame, text='Handling Height (mm):', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.handling_height_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.handling_height_entry.insert(0, '200')
+        self.handling_height_entry.insert(0, '150')
         self.handling_height_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -184,7 +184,7 @@ class RosbagGUI(Node):
         # Iterations
         ttk.Label(Pick_Place_param_frame, text='Iterations:', width=label_width, anchor='e').grid(row=row, column=0, padx=5, pady=5, sticky='e')
         self.iterations_entry = ttk.Entry(Pick_Place_param_frame, width=entry_width)
-        self.iterations_entry.insert(0, '10')
+        self.iterations_entry.insert(0, '3')
         self.iterations_entry.grid(row=row, column=1, padx=5, pady=5, sticky='w')
         row += 1
     
@@ -446,7 +446,7 @@ class RosbagGUI(Node):
 
             self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-            bag_file = Path(self.bags_directory) / f'record_{self.timestamp}_pickplace_{self.trajectory_pickplace}'
+            bag_file = Path(self.bags_directory) / f'record_{self.timestamp}_pickplace_{str(self.velocity_entry.get())}v_{str(int(round(self.weight_var.get() - 13.5, 1)))}kg_{str((self.handling_height_entry.get()))}mm_{self.trajectory_pickplace}'
             
             self.record_pickplace_process = subprocess.Popen(['ros2', 'bag', 'record', '-o', str(bag_file),
                                                     '/vrpn_mocap/abb4400_tcp/pose', '/vrpn_mocap/abb4400_tcp/twist',
@@ -490,7 +490,7 @@ class RosbagGUI(Node):
             getFTPTestFile(self.logs_directory)
             my_file = Path(self.logs_directory) / "ProgramExecution"
             if my_file.is_file():
-                renamed_file = f'record_{self.timestamp}_pickplace_{self.trajectory_pickplace}_rapid_log'
+                renamed_file = f'record_{self.timestamp}_pickplace_{str(self.velocity_entry.get())}v_{str(int(round(self.weight_var.get() - 13.5, 1)))}kg_{str((self.handling_height_entry.get()))}mm_{self.trajectory_pickplace}_rapid_log'
                 os.rename(my_file, os.path.join(self.logs_directory, renamed_file))
                 self.get_logger().info(f'Renamed and saved pickplace log: {renamed_file}')
             self.get_logger().info('Pickplace recording stopped.')
@@ -557,11 +557,12 @@ class RosbagGUI(Node):
         for i in range(num_trajectories):
             filename = f'random_trajectory_{i + 1}.mod'
             gripper_down(filename, self.pick_place_trajectories_directory)
-        self.status_label.config(text='Gripper Down')
+        
         sendRandomTrajectoriesFTP(self.pick_place_trajectories_directory)
         changeFTPValue("1")
         time.sleep(3)
         changeFTPValue("0")
+        self.status_label.config(text='Gripper Down')
     def Gripper_Up(self):
         num_trajectories = 1  # Adjust as needed
         for i in range(num_trajectories):
@@ -572,6 +573,7 @@ class RosbagGUI(Node):
         changeFTPValue("1")
         time.sleep(3)
         changeFTPValue("0")
+        self.status_label.config(text='Gripper Up')
     def activate_rosbag_processor_pickplace(self):
         rosbag_processor = RosbagProcessor()  # You might want to add specific processing for pickplace data
         self.status_label.config(text='Pickplace processing completed.')
